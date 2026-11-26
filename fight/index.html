@@ -26,8 +26,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--lime);outline-o
 #app{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none}
 #wrap{position:relative;width:100%;max-width:calc(100vh*16/9);aspect-ratio:16/9;max-height:100%;background:#000}
 canvas{display:block;width:100%;height:100%;touch-action:none}
-#camMini{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:24%;max-width:280px;aspect-ratio:4/3;border-radius:8px;border:2px solid rgba(255,255,255,.35);display:none;cursor:pointer;z-index:5;background:#000}
+#camMini{position:absolute;right:10px;top:24%;height:auto!important;width:15%;min-width:120px;max-width:200px;opacity:.88;aspect-ratio:4/3;border-radius:8px;border:2px solid rgba(255,255,255,.35);display:none;cursor:pointer;z-index:5;background:#000}
 body.cam #camMini{display:block}
+body.cam.camhide #camMini{display:none}
+#camToggle{display:none}body.cam #camToggle{display:inline-block}
 .topbtns{position:absolute;top:14%;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:6}
 .iconbtn{background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font:700 12px var(--f-mono);min-height:30px;min-width:34px;opacity:.85}
 
@@ -106,7 +108,7 @@ input[type=text]{min-height:48px;border-radius:8px;border:1px solid var(--line);
   <div id="wrap">
     <canvas id="cv" aria-label="Fight arena"></canvas>
     <canvas id="camMini" width="320" height="240" title="Tap to recalibrate"></canvas>
-    <div class="topbtns"><button class="iconbtn" id="muteBtn" aria-label="Sound on or off">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="Menu">☰</button></div>
+    <div class="topbtns"><button class="iconbtn" id="camToggle" aria-label="Show or hide the camera picture">📷</button><button class="iconbtn" id="muteBtn" aria-label="Sound on or off">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="Menu">☰</button></div>
   </div>
   <p id="hint">↻ Turn your phone sideways for a bigger fight</p>
   <div id="touch" aria-hidden="true">
@@ -219,23 +221,24 @@ input[type=text]{min-height:48px;border-radius:8px;border:1px solid var(--line);
     <h2>Fight with your body</h2>
     <p class="lede">Your camera watches you and your fighter copies you. Put the laptop on a table, step back 2–3 steps so your head to knees are in the picture, and keep the room well lit. Tracking runs on this computer: nothing is recorded or sent.</p>
     <div class="row" style="align-items:flex-start">
-      <canvas id="camBig" width="480" height="360" style="width:min(100%,420px);aspect-ratio:4/3;border-radius:12px;background:#000;border:1px solid var(--line)"></canvas>
+      <canvas id="camBig" width="480" height="360" style="width:min(100%,420px);height:auto;aspect-ratio:4/3;border-radius:12px;background:#000;border:1px solid var(--line)"></canvas>
       <div class="ctl" style="flex:1;min-width:240px;grid-template-columns:repeat(2,minmax(0,1fr))">
-        <div><b>Punch</b>Throw a fast punch, either hand</div>
-        <div><b>Kick</b>Lift a knee up high</div>
-        <div><b>Jump</b>Jump</div>
+        <div><b>Punch</b>Snap a fast punch at the screen or across, either hand</div>
+        <div><b>Kick</b>Lift a knee up, or swing a foot out. Legs not in view? Swing an arm low and sideways</div>
+        <div><b>Jump</b>Hop up</div>
         <div><b>Duck</b>Squat down</div>
-        <div><b>Block</b>Both fists up in front of your face</div>
+        <div><b>Block</b>Both fists together in front of your face</div>
         <div><b>Move</b>Step left or right</div>
         <div><b>Throw product</b>Punch with both hands together</div>
         <div><b>Super</b>Both hands up over your head</div>
       </div>
     </div>
     <p class="status" id="camStatus"></p>
+    <div><div class="fine" style="margin-bottom:6px">Gesture sensitivity</div><div class="seg" id="camSens"><button data-s="0">Low</button><button data-s="1">Normal</button><button data-s="2">High</button></div></div>
     <div class="seg" id="camPlayers"><button data-n="1">1 player</button><button data-n="2">2 players, one camera</button></div>
     <div class="btnrow"><button class="btn ghost" id="camStart">Start camera</button><button class="btn ghost" id="camRecal" hidden>Recalibrate</button><button class="btn ghost" id="camOff" hidden>Camera off</button></div>
     <div class="btnrow"><button class="btn ghost" id="camBack">← Back</button><button class="btn" id="camGo" disabled>Pick fighters →</button><button class="btn orange" id="camOnline" disabled>Fight a friend online</button></div>
-    <p class="fine">Tip: tap the small camera picture during a fight to recalibrate. Keyboard and touch controls still work alongside the camera.</p>
+    <p class="fine">Tips: if moves don't register, try High sensitivity; if you get moves you didn't make, try Low. Tap the small camera picture during a fight to recalibrate, or 📷 at the top to hide it. Keyboard still works alongside the camera.</p>
   </div>
 </div>
 
@@ -1114,43 +1117,68 @@ function camProcess(all,t){
   if(poses.length===1){ const x=centerX(poses[0]); const d=E=>E.cx==null?9:Math.abs(E.cx-x); as=d(CAM.eng[0])<=d(CAM.eng[1])?[poses[0],null]:[null,poses[0]]; }
   feed(CAM.eng[0],as[0],t,0); feed(CAM.eng[1],as[1],t,1);
 }
+const SENSE=[1.35,1,.72];   // low / normal / high: multiplies every threshold
+let camSens=1; try{ camSens=+(localStorage.getItem('fight-camsens')??1); if(!(camSens>=0&&camSens<=2)) camSens=1; }catch(e){}
 function feed(E,p,t,i){
   if(!p){ for(const k of ['l','r','d','b']) setHeld(i,k,0); E.prev=null; return; }
-  const ls=p[11], rs=p[12], nose=p[0], le=p[13], re=p[14], lw=p[15], rw=p[16], lh=p[23], rh=p[24], lk=p[25], rk=p[26];
+  const V=k=>p[k].visibility;
+  const ls=p[11], rs=p[12], nose=p[0], le=p[13], re=p[14], lw=p[15], rw=p[16], lh=p[23], rh=p[24], lk=p[25], rk=p[26], la=p[27], ra=p[28];
   const u=Math.max(.03,Math.hypot(ls.x-rs.x,ls.y-rs.y)); const S={x:(ls.x+rs.x)/2,y:(ls.y+rs.y)/2};
-  const hipsOK=lh.visibility>.5&&rh.visibility>.5; const hipY=hipsOK?(lh.y+rh.y)/2:S.y+1.6*u; const cx=hipsOK?(lh.x+rh.x)/2:S.x; E.cx=cx;
-  const kneesOK=lk.visibility>.5&&rk.visibility>.5;
+  const hipsOK=V(23)>.45&&V(24)>.45; const hipY=hipsOK?(lh.y+rh.y)/2:S.y+1.6*u; const hipX=hipsOK?(lh.x+rh.x)/2:S.x; const cx=hipsOK?hipX:S.x; E.cx=cx;
+  const kneesOK=V(25)>.35&&V(26)>.35;
+  // calibration: a second of standing roughly still (or two seconds of anything)
   if(!E.base){
-    E.calib.push({sy:S.y,cx,u,ky:kneesOK?(lk.y+rk.y)/2:null}); if(E.calib.length>40) E.calib.shift();
-    if(E.calib.length>=24){ const a=E.calib.slice(-24); const sy=a.map(q=>q.sy), xs=a.map(q=>q.cx); const spread=(Math.max(...sy)-Math.min(...sy))+(Math.max(...xs)-Math.min(...xs));
-      if(spread<u*.35){ const ks=a.map(q=>q.ky).filter(v=>v!=null); E.base={sy:avgA(sy),cx:avgA(xs),u:avgA(a.map(q=>q.u)),ky:ks.length>12?avgA(ks):null}; flashE(E,t,'READY!'); play('select',.6);
-        const ready=CAM.eng.slice(0,CAM.players).every(e=>e.base); camStatus(ready?(E.base.ky==null?'Ready! (Step back a little more so kicks work: we can’t see your knees.)':'Ready! Punch, kick, jump and block to fight.'):'Player '+(i+1)+' ready. Waiting for the other player…'); } }
+    E.calib.push({sy:S.y,cx,u,ky:kneesOK?(lk.y+rk.y)/2:null}); if(E.calib.length>90) E.calib.shift();
+    const a=E.calib.slice(-18);
+    if(a.length>=18){ const sy=a.map(q=>q.sy), xs=a.map(q=>q.cx); const spread=(Math.max(...sy)-Math.min(...sy))+(Math.max(...xs)-Math.min(...xs));
+      if(spread<u*.6 || E.calib.length>=60){ const ks=a.map(q=>q.ky).filter(v=>v!=null); E.base={sy:avgA(sy),cx:avgA(xs),u:avgA(a.map(q=>q.u)),ky:ks.length>8?avgA(ks):null}; flashE(E,t,'READY!'); play('select',.6);
+        const ready=CAM.eng.slice(0,CAM.players).every(e=>e.base); camStatus(ready?(E.base.ky==null?'Ready! We can’t see your knees, so kick by swinging an arm low and sideways.':'Ready! Punch, kick, jump and block to fight.'):'Player '+(i+1)+' ready. Waiting for the other player…'); } }
     E.prev=null; return; }
-  const B=E.base, U=B.u, dt=Math.max(.016,Math.min(.2,(t-E.prevT)/1000));
-  // step left/right (the picture is mirrored: stepping to your right lowers x)
-  const dx=cx-B.cx; setHeld(i,'r',dx<-.5*U); setHeld(i,'l',dx>.5*U);
-  if(dx<-.5*U) flashE(E,t,'→'); else if(dx>.5*U) flashE(E,t,'←');
-  // duck and jump
-  const dy=S.y-B.sy; setHeld(i,'d',dy>.6*U); if(dy>.6*U) flashE(E,t,'DUCK');
-  if(E.prev){ const vy=(S.y-E.prev.sy)/dt; if(dy<-.3*U && vy<-1.8*U && t>E.cd.u){ tapKey(i,'u'); E.cd.u=t+700; flashE(E,t,'JUMP!'); } }
-  // super: both hands above the head, held
-  const overHead=lw.y<nose.y-.5*U && rw.y<nose.y-.5*U;
-  if(overHead){ if(!E.ohT) E.ohT=t; if(t-E.ohT>350 && t>E.cd.x){ tapKey(i,'x'); E.cd.x=t+1500; flashE(E,t,'SUPER!'); } } else E.ohT=0;
-  // punches: a fast wrist with the arm straightening (towards the camera counts too)
-  let punching=false;
-  const reach=[Math.hypot(lw.x-ls.x,lw.y-ls.y,(lw.z-ls.z)*.6)/U,Math.hypot(rw.x-rs.x,rw.y-rs.y,(rw.z-rs.z)*.6)/U];
-  if(E.prev){ [[0,lw,ls,le],[1,rw,rs,re]].forEach(([j,w,s,el])=>{ const pw=E.prev.w[j]; const sp=Math.hypot(w.x-pw.x,w.y-pw.y)/dt/U + Math.max(0,pw.z-w.z)/dt/U*.5;
-      const grow=reach[j]-Math.min(E.prev.r[j],E.prev.r2?E.prev.r2[j]:9);
-      const ext=Math.hypot(w.x-s.x,w.y-s.y)/Math.max(1e-4,Math.hypot(el.x-s.x,el.y-s.y)+Math.hypot(w.x-el.x,w.y-el.y));
-      const inZone=w.y>nose.y-.6*U && w.y<hipY;
-      if(sp>5 && ext>.8 && inZone && grow>.22){ punching=true; if(t>E.cd['p'+j]){ E.cd['p'+j]=t+260; E.punchT[j]=t;
-          if(t-E.punchT[1-j]<180 && t>E.cd.s){ tapKey(i,'s'); E.cd.s=t+900; flashE(E,t,'THROW!'); } else { tapKey(i,'p'); flashE(E,t,'PUNCH!'); } } } }); }
-  // block: both fists up in front of the face
-  const guard=!overHead && lw.y<S.y+.15*U && rw.y<S.y+.15*U && Math.abs(lw.x-nose.x)<1.1*U && Math.abs(rw.x-nose.x)<1.1*U && !punching;
-  setHeld(i,'b',guard); if(guard&&!(E.label==='BLOCK'&&t-E.labelT<400)) flashE(E,t,'BLOCK');
-  // kick: a knee lifted well above where it stands
-  if(B.ky!=null && kneesOK){ const ky=Math.min(lk.y,rk.y); if(B.ky-ky>.5*U && t>E.cd.k){ tapKey(i,'k'); E.cd.k=t+450; flashE(E,t,'KICK!'); } }
-  E.prev={sy:S.y,r:reach,r2:E.prev?E.prev.r:null,w:[{x:lw.x,y:lw.y,z:lw.z},{x:rw.x,y:rw.y,z:rw.z}]}; E.prevT=t; E.lmk=p;
+  const B=E.base, U=B.u, K=SENSE[camSens], dt=Math.max(.016,Math.min(.2,(t-E.prevT)/1000));
+  if(B.ky==null && kneesOK && (E.kneeSeen=(E.kneeSeen||0)+1)>20) B.ky=(lk.y+rk.y)/2;   // legs came into view later
+  // where you stand: step left/right (picture is mirrored: stepping to your right lowers x)
+  const dx=cx-B.cx, dy=S.y-B.sy;
+  if(Math.abs(dx)<.25*U) B.cx+=(cx-B.cx)*Math.min(1,dt*.5);           // follow slow drift, not deliberate steps
+  if(Math.abs(dy)<.15*U) B.sy+=(S.y-B.sy)*Math.min(1,dt*.5);
+  const goR=dx<-.42*U*K, goL=dx>.42*U*K; setHeld(i,'r',goR); setHeld(i,'l',goL); if(goR) flashE(E,t,'→'); else if(goL) flashE(E,t,'←');
+  // duck + jump
+  const duck=dy>.5*U*K; setHeld(i,'d',duck); if(duck) flashE(E,t,'DUCK');
+  if(E.prev){ const vy=(S.y-E.prev.sy)/dt/U; if(dy<-.17*U*K && vy<-1.1/K && t>E.cd.u){ tapKey(i,'u'); E.cd.u=t+650; flashE(E,t,'JUMP!'); } }
+  // super: both hands above the head, held a moment
+  const overHead=lw.y<nose.y-.45*U && rw.y<nose.y-.45*U;
+  if(overHead){ if(!E.ohT) E.ohT=t; if(t-E.ohT>300 && t>E.cd.x){ tapKey(i,'x'); E.cd.x=t+1500; flashE(E,t,'SUPER!'); } } else E.ohT=0;
+  // block: both fists together in front of the face (a normal boxing guard is NOT a block, so you can still move)
+  const block=!overHead && lw.y<S.y+.25*U && rw.y<S.y+.25*U && Math.abs(lw.x-rw.x)<.55*U && Math.abs((lw.x+rw.x)/2-nose.x)<.9*U;
+  // hands: judge each punch over the last ~70 ms, not one frame, so camera jitter doesn't count
+  const reach=[Math.hypot(lw.x-ls.x,lw.y-ls.y,(lw.z-ls.z)*.5)/U,Math.hypot(rw.x-rs.x,rw.y-rs.y,(rw.z-rs.z)*.5)/U];
+  const dz=[(lw.z-ls.z)/U,(rw.z-rs.z)/U];
+  E.hist=E.hist||[[],[]];
+  let punching=false, kicked=false; const hits=[];
+  [[0,lw,ls,le],[1,rw,rs,re]].forEach(([j,w,s,el])=>{
+    const H=E.hist[j]; H.push({x:w.x,y:w.y,dz:dz[j],r:reach[j],t}); while(H.length>6||(H.length>2&&t-H[0].t>140)) H.shift();
+    if(V(15+j)<.3||H.length<3) return;
+    const o=H[0], span=Math.max(.033,(t-o.t)/1000)/.066;            // normalise to a 66 ms window
+    const D2=Math.hypot(w.x-o.x,w.y-o.y)/U/span, Dz=-(dz[j]-o.dz)/span, dR=(reach[j]-o.r)/span, vx=(w.x-o.x)/U/span, vy=(w.y-o.y)/U/span;
+    const ext=Math.hypot(w.x-s.x,w.y-s.y)/Math.max(1e-4,Math.hypot(el.x-s.x,el.y-s.y)+Math.hypot(w.x-el.x,w.y-el.y));
+    const downward=vy>0 && vy>1.4*Math.abs(vx);
+    const high=w.y>nose.y-.75*U && w.y<S.y+.85*U;
+    const sideP=D2>.5*K && ext>.72 && dR>.22*K;                     // punch across the picture
+    const fwdP=Dz>.6*K && dR>.2*K && dz[j]<-.15;                      // punch straight at the camera
+    const fastP=D2+Math.max(0,Dz)>1.1*K && dR>.25*K && !downward;
+    if(high && !overHead && (sideP||fwdP||fastP)){ punching=true; if(t>E.cd['p'+j]) hits.push(j); }
+    // no legs in view: a fast low sideways arm swing counts as a kick
+    const q=H[H.length-2], sq=Math.max(.02,(t-q.t)/1000)/.066, svx=(w.x-q.x)/U/sq, svy=(w.y-q.y)/U/sq;
+    if(B.ky==null && !kicked && w.y>S.y+.85*U && Math.abs(svx)>.9*K && Math.abs(svx)>1.8*Math.abs(svy) && t>E.cd.k){ kicked=true; tapKey(i,'k'); E.cd.k=t+450; flashE(E,t,'KICK!'); }
+  });
+  for(const j of hits){ E.cd['p'+j]=t+240; E.punchT[j]=t; }
+  if(hits.length){ const both=hits.length===2||t-E.punchT[1-hits[0]]<220;
+    if(both && t>E.cd.s){ tapKey(i,'s'); E.cd.s=t+900; E.cd.p0=E.cd.p1=t+300; flashE(E,t,'THROW!'); }
+    else { tapKey(i,'p'); flashE(E,t,'PUNCH!'); } }
+  setHeld(i,'b',block&&!punching); if(block&&!punching&&!(E.label==='BLOCK'&&t-E.labelT<400)) flashE(E,t,'BLOCK');
+  // kick: a knee lifted, or a foot swung out to the side
+  if(!kicked && B.ky!=null && kneesOK && t>E.cd.k){ const lift=B.ky-Math.min(lk.y,rk.y); const side=(V(27)>.35&&Math.abs(la.x-hipX)>1.35*U)||(V(28)>.35&&Math.abs(ra.x-hipX)>1.35*U);
+    if(lift>.38*U*K || side){ tapKey(i,'k'); E.cd.k=t+450; flashE(E,t,'KICK!'); } }
+  E.prev={sy:S.y,r:reach,r2:E.prev?E.prev.r:null,dz,w:[{x:lw.x,y:lw.y,z:lw.z},{x:rw.x,y:rw.y,z:rw.z}]}; E.prevT=t; E.lmk=p;
 }
 const BONES=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
 function drawCam(all){
@@ -1168,7 +1196,7 @@ function drawCam(all){
   }
 }
 function paintCamButtons(){ const on=CAM.on; $('#camStart').hidden=on; $('#camRecal').hidden=!on; $('#camOff').hidden=!on; $('#camGo').disabled=!on; $('#camOnline').disabled=!on||CAM.players===2; }
-function openCam(){ show('#camOv'); paintCamButtons(); document.querySelectorAll('#camPlayers button').forEach(b=>{ b.setAttribute('aria-pressed',String(+b.dataset.n===CAM.players)); b.onclick=()=>{ CAM.players=+b.dataset.n; document.querySelectorAll('#camPlayers button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); recalibrate(); paintCamButtons(); }; }); if(!CAM.on) camStart(); }
+function openCam(){ show('#camOv'); paintCamButtons(); document.querySelectorAll('#camSens button').forEach(b=>{ b.setAttribute('aria-pressed',String(+b.dataset.s===camSens)); b.onclick=()=>{ camSens=+b.dataset.s; try{ localStorage.setItem('fight-camsens',camSens); }catch(_){} document.querySelectorAll('#camSens button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); }; }); document.querySelectorAll('#camPlayers button').forEach(b=>{ b.setAttribute('aria-pressed',String(+b.dataset.n===CAM.players)); b.onclick=()=>{ CAM.players=+b.dataset.n; document.querySelectorAll('#camPlayers button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); recalibrate(); paintCamButtons(); }; }); if(!CAM.on) camStart(); }
 $('#camBtn').onclick=()=>{ audioInit(); openCam(); };
 $('#camStart').onclick=()=>camStart();
 $('#camRecal').onclick=()=>recalibrate();
@@ -1177,6 +1205,8 @@ $('#camBack').onclick=()=>show('#titleOv');
 $('#camGo').onclick=()=>{ if(CAM.players===2){ DUO.step=1; openSelect('local2'); } else openSelect('cpu'); };
 $('#camOnline').onclick=()=>openSelect('online');
 $('#camMini').addEventListener('click',()=>{ recalibrate(); });
+$('#camToggle').onclick=()=>{ document.body.classList.toggle('camhide'); try{ localStorage.setItem('fight-camhide',document.body.classList.contains('camhide')?'1':'0'); }catch(e){} };
+try{ if(localStorage.getItem('fight-camhide')==='1') document.body.classList.add('camhide'); }catch(e){}
 // two players on one camera
 const DUO={step:1,p1:null,p2:null};
 async function startLocal2(){ const a=byId(DUO.p1), b=byId(DUO.p2); await prepFighter(a); await prepFighter(b);
