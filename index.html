@@ -133,6 +133,24 @@ p{margin:0}
 .note{font-size:13px;color:var(--mute)}
 .saved{font-size:14px;color:var(--lime);font-weight:700}
 .overlay,.overlay.full{padding-top:64px}
+.card.make{background:repeating-linear-gradient(135deg,rgba(255,210,63,.18) 0 10px,rgba(255,210,63,.08) 10px 20px);border:2px dashed #ffd23f}
+.card.make .pic{display:grid;place-items:center;font-size:44px;color:#ffd23f}
+.card .edit{position:absolute;top:6px;left:6px;background:var(--glass);border:1px solid var(--line);border-radius:999px;font:700 10px var(--f-mono);padding:3px 7px;color:#ffd23f}
+.makebox{display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;align-items:start}
+.preview{height:200px;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#7cc8ff,#d6f0ff 70%,#9ed36a 70%);display:flex;align-items:flex-end;justify-content:center;position:relative}
+.preview img{height:100%;width:auto;max-width:none}
+.preview .ph{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font-size:13px;color:#24311b;padding:10px;font-weight:700}
+.makeside{display:flex;flex-direction:column;gap:8px;min-width:0}
+.makeside .btn{width:100%;padding:13px 12px;font-size:15px}
+.status{font-size:13px;color:var(--mute);min-height:18px}
+.status.err{color:#ff8a80}
+.sigs{display:flex;flex-wrap:wrap;gap:6px}
+.sigs button{width:44px;height:52px;border-radius:8px;border:2px solid transparent;background:var(--glass2);padding:3px}
+.sigs button img{width:100%;height:100%;object-fit:contain}
+.sigs button[aria-pressed="true"]{border-color:var(--lime)}
+.privacy{font-size:12px;color:var(--mute)}
+input.hiddenfile{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+@media (max-width:380px){ .makebox{grid-template-columns:120px minmax(0,1fr)} .preview{height:170px} }
 @media (hover:none){ kbd{display:none} }
 @media (prefers-reduced-motion:reduce){.flash.on{animation:none;opacity:1}}
 </style>
@@ -186,6 +204,26 @@ p{margin:0}
     <p class="lede">The creators from your BeastLife videos. Each one has a signature product worth double points.</p>
     <div class="grid" id="grid"></div>
     <div class="selbar"><button class="btn" id="goBtn">Run <kbd>Enter</kbd></button></div>
+  </div>
+
+  <div class="overlay full" id="makeOv" hidden>
+    <span class="eyebrow">Your face in the game</span>
+    <h2>Make your own runner</h2>
+    <p class="lede">Take a selfie or pick a photo. Face the camera with your shoulders in the frame. We cut you out automatically.</p>
+    <div class="makebox">
+      <div class="preview" id="makePrev"><div class="ph" id="makePh">Your runner shows up here</div></div>
+      <div class="makeside">
+        <button class="btn gold" id="selfieBtn">📸 Take a selfie</button>
+        <button class="btn ghost" id="photoBtn">🖼️ Choose a photo</button>
+        <input class="hiddenfile" type="file" id="selfieIn" accept="image/*" capture="user" tabindex="-1">
+        <input class="hiddenfile" type="file" id="photoIn" accept="image/*" tabindex="-1">
+        <p class="status" id="makeStatus" role="status"></p>
+      </div>
+    </div>
+    <label class="field">Runner name<input id="ownName" maxlength="16" autocomplete="nickname" placeholder="e.g. Niraj"></label>
+    <div class="field">Your signature product (scores double)<div class="sigs" id="ownSigs"></div></div>
+    <p class="privacy">Your photo is cut out on this phone and saved only here. When you race friends, your runner picture is sent to them so they can see you.</p>
+    <div class="selbar"><button class="btn" id="ownUse" disabled>Use this runner</button><button class="btn ghost" id="ownBack">Back</button></div>
   </div>
 
   <div class="overlay" id="pauseOv" hidden>
@@ -255,11 +293,18 @@ const CHARS=[
   {id:'sporttop', name:'Sale Girl', from:'BeastLife Sale ad', sig:'mg_choc'},
   {id:'bodybuilder', name:'The Beast', from:'Mass Gainer Winter', sig:'mg_choc'},
 ];
+/* your own runner (selfie or photo), stored on this phone only */
+let OWN=null; try{ OWN=JSON.parse(localStorage.getItem('salerush-own')||'null'); }catch(e){}
+if(OWN && OWN.img) CHARS.unshift({id:'me',name:OWN.name||'Me',from:'Your own runner',sig:OWN.sig||'pp_choc',custom:true});
+const PEERIMG={};
+function ownPeerKey(){ return 'u_'+(window.__srid||''); }
+const SILHOUETTE='data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120"><rect width="100" height="120" fill="#9fd6ff"/><circle cx="50" cy="42" r="22" fill="#2c3542"/><path d="M8 120c4-30 22-44 42-44s38 14 42 44z" fill="#2c3542"/></svg>');
+function charSrc(id){ if(id==='me'||(OWN&&id===ownPeerKey()&&CHARS[0]&&CHARS[0].custom)) return OWN&&OWN.img||SILHOUETTE; if(typeof id==='string'&&id.startsWith('u_')) return PEERIMG[id]||SILHOUETTE; if(id==='own') return SILHOUETTE; return 'assets/c_'+id+'.png'; }
 const IMG={};
 function load(key,src){ const im=new Image(); im.src=src; IMG[key]=im; return im; }
 Object.keys(PRODUCTS).forEach(k=>load(k,'assets/'+k+'.png'));
 ['shaker','gymbag','ps5','bflogo','tumbler'].forEach(k=>load(k,'assets/'+k+'.png'));
-CHARS.forEach(c=>load('c_'+c.id,'assets/c_'+c.id+'.png'));
+CHARS.forEach(c=>load('c_'+c.id,charSrc(c.id)));
 load('c_f_1','assets/f_1.png'); load('c_f_2','assets/f_2.png');
 const ok=im=>im && im.complete && im.naturalWidth>0;
 
@@ -334,10 +379,11 @@ paintBest();
 
 /* ---------- character select ---------- */
 function buildGrid(){
-  $('#grid').innerHTML=CHARS.map((c,i)=>`<button class="card" id="ch-${c.id}" data-i="${i}" aria-pressed="${i===charIdx}">
-    <div class="pic"><img src="assets/c_${c.id}.png" alt=""></div>
+  $('#grid').innerHTML=`<button class="card make" id="makeTile"><div class="pic">＋</div><div class="meta"><span><strong>${OWN?'New photo':'Make your own'}</strong><small>Selfie or photo</small></span></div></button>`+CHARS.map((c,i)=>`<button class="card" id="ch-${c.id}" data-i="${i}" aria-pressed="${i===charIdx}">${c.custom?'<span class="edit">YOU</span>':''}
+    <div class="pic"><img src="${charSrc(c.id)}" alt=""></div>
     <div class="meta"><img src="assets/${c.sig}.png" alt="" title="${PRODUCTS[c.sig]}"><span><strong>${c.name}</strong><small>${c.from}</small></span></div></button>`).join('');
-  $('#grid').querySelectorAll('.card').forEach(b=>b.onclick=()=>{ pickChar(+b.dataset.i); });
+  $('#grid').querySelectorAll('.card[data-i]').forEach(b=>b.onclick=()=>{ pickChar(+b.dataset.i); });
+  $('#makeTile').onclick=openMaker;
   paintGo();
 }
 function pickChar(i){ charIdx=i; try{localStorage.setItem('salerush-char',CHARS[i].id);}catch(e){}
@@ -407,6 +453,7 @@ document.addEventListener('keydown',e=>{
     if(k==='Enter'||k===' '){ e.preventDefault(); if(document.activeElement&&document.activeElement.classList.contains('card')){ document.activeElement.blur(); } return MODE==='multi' ? goLobby() : startRun(); }
     return;
   }
+  if(state==='make') return;
   if(state==='lobby'||state==='lb'||state==='count'){ if(state==='lobby' && k==='Enter' && document.activeElement.tagName!=='INPUT'){ e.preventDefault(); startRace(); } return; }
   if(state==='over' && document.activeElement && document.activeElement.tagName==='INPUT') return;
   if(k===' '||k==='Enter'){ e.preventDefault(); if(document.activeElement&&document.activeElement.tagName==='BUTTON') document.activeElement.blur();
@@ -434,7 +481,7 @@ function startRun(seed){
   for(let z=62;z<FAR;z+=rndR(17,22)) spawnRow(z);
   G.nextRow=FAR-G.objs.reduce((m,o)=>Math.max(m,o.z),0);
   state='play'; $('#startOv').hidden=$('#overOv').hidden=$('#pauseOv').hidden=$('#selectOv').hidden=true; $('#hud').hidden=false;
-  $('#hudFace').src='assets/c_'+CH().id+'.png';
+  $('#hudFace').src=charSrc(CH().id);
   $('#count').hidden=true; $('#lobbyOv').hidden=$('#lbOv').hidden=true; NET.inRace=MODE==='multi'; $('#race').innerHTML=''; for(const k in RACEC) delete RACEC[k]; HUDC.pw=null; HUDC.txt={};
   flash('Run! The founders are after you'); sfx.go(); musicMode('play'); $('#pauseBtn').hidden=MODE==='multi'; keepAwake(true); last=performance.now(); cancelAnimationFrame(raf); raf=requestAnimationFrame(loop);
 }
@@ -487,13 +534,13 @@ function finishCrash(o){
   $('#cause').textContent = o.type==='caught' ? '🚨 Caught by the founders' : o.type==='car' ? (o.truck?'Hit a BeastLife truck':'Hit a car') : o.type==='barrier' ? 'Tripped on: '+o.txt : 'Hit the sale banner';
   $('#overTitle').textContent = sc>best && best>0 ? 'New best run' : 'Caught!';
   $('#overLine').textContent = pick(LINES[o.type]);
-  $('#overFace').src='assets/c_'+CH().id+'.png';
+  $('#overFace').src=charSrc(CH().id);
   $('#fScore').textContent=fmt(sc); $('#fPacks').textContent=G.packs; $('#fDist').textContent=fmt(G.dist)+' m';
   $('#bestOver').textContent='Best run: '+fmt(Math.max(sc,best));
   $('#againBtn').innerHTML = MODE==='multi' ? 'Back to room' : 'Run again <kbd>Space</kbd>';
   if(MODE==='multi'){ netSend('over',myState(false)); }
   $('#standings').hidden = MODE!=='multi'; paintStandings();
-  afterRunSave({name:getName(),runner:CH().id,score:sc,packs:G.packs,ps5:G.ps5,dist:Math.floor(G.dist)});
+  afterRunSave({name:getName(),runner:CH().custom?'own':CH().id,score:sc,packs:G.packs,ps5:G.ps5,dist:Math.floor(G.dist)});
   $('#hud').hidden=true; $('#overOv').hidden=false;
   paintBest();
 }
@@ -843,14 +890,16 @@ const TOPIC='beastlife-salerush/v1';
 const ONLINE=()=>true;
 let MODE='solo';
 const myId=(()=>{ try{ let v=sessionStorage.getItem('sr-id'); if(!v){ v=Math.random().toString(36).slice(2,10); sessionStorage.setItem('sr-id',v); } return v; }catch(e){ return Math.random().toString(36).slice(2,10); } })();
+window.__srid=myId;
 const NET={room:null,ch:null,bc:null,hb:0,peers:{},lobby:{},ready:false,lastSend:0,lastRace:0,inRace:false};
 function getName(){ try{ return (localStorage.getItem('salerush-name')||'').trim(); }catch(e){ return ''; } }
 function setName(v){ v=(v||'').trim().slice(0,16); try{ localStorage.setItem('salerush-name',v); }catch(e){} return v; }
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const charName=id=>(CHARS.find(c=>c.id===id)||{name:id}).name;
-const validChar=id=>CHARS.some(c=>c.id===id) ? id : CHARS[0].id;
-function meInfo(){ return {id:myId,name:getName()||'Player',char:CH().id}; }
-function myState(alive){ const p=G.p; return {id:myId,name:getName()||'Player',char:CH().id,x:+p.x.toFixed(2),y:+p.y.toFixed(2),slide:p.slide>0,dist:+G.dist.toFixed(1),speed:+G.speed.toFixed(1),score:Math.floor(G.score),ps5:G.ps5,alive}; }
+const charName=id=>(id==='own'||(typeof id==='string'&&id.startsWith('u_')))?'Own runner':(CHARS.find(c=>c.id===id&&!c.custom)||{name:id}).name;
+const validChar=id=>(id==='own'||(typeof id==='string'&&/^u_[a-z0-9]{4,12}$/.test(id))||CHARS.some(c=>c.id===id&&!c.custom)) ? id : 'kavya';
+const netChar=()=>CH().custom?'u_'+myId:CH().id;
+function meInfo(){ return {id:myId,name:getName()||'Player',char:netChar()}; }
+function myState(alive){ const p=G.p; return {id:myId,name:getName()||'Player',char:netChar(),x:+p.x.toFixed(2),y:+p.y.toFixed(2),slide:p.slide>0,dist:+G.dist.toFixed(1),speed:+G.speed.toFixed(1),score:Math.floor(G.score),ps5:G.ps5,alive}; }
 
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
 let mqPromise=null; const mqHandlers=new Map();
@@ -875,7 +924,8 @@ async function netJoin(room){
   NET.room=room; NET.lobby={}; NET.peers={}; NET.ready=false;
   try{ history.replaceState(null,'','?room='+room); }catch(e){}
   const handle=m=>{ const ev=m&&m.ev, p=m&&m.p; if(!p||p.id===myId) return;
-    if(ev==='hello'){ if(typeof p.name!=='string') return; NET.lobby[p.id]={id:p.id,name:p.name.slice(0,16),char:validChar(p.char),_t:Date.now()}; paintLobby(); }
+    if(ev==='hello'){ if(typeof p.name!=='string') return; const isNew=!NET.lobby[p.id]; NET.lobby[p.id]={id:p.id,name:p.name.slice(0,16),char:validChar(p.char),_t:Date.now()}; if(isNew){ sendMyPic(); if(NET.bus) NET.bus.post({ev:'hello',p:meInfo()}); } paintLobby(); }
+    else if(ev==='pic'){ if(typeof p.src==='string' && /^data:image\/(png|webp|jpeg);base64,/.test(p.src) && p.src.length<350000){ const k='u_'+p.id; if(PEERIMG[k]!==p.src){ PEERIMG[k]=p.src; load('c_'+k,p.src); paintLobby(); } } }
     else if(ev==='bye'){ delete NET.lobby[p.id]; paintLobby(); }
     else onNet(ev,p); };
   lobbyMsg('Connecting…');
@@ -890,10 +940,13 @@ async function netJoin(room){
     NET.bus={post:m=>bc.postMessage(m), close:()=>bc.close()};
     lobbyMsg('Could not reach the game server, so only this phone is in the room. Check your internet and open the invite again.');
   }
+  sendMyPic(true);
   const beat=()=>{ const now=Date.now(); NET.lobby[myId]={...meInfo(),_t:now}; for(const k in NET.lobby){ if(k!==myId && now-NET.lobby[k]._t>6000) delete NET.lobby[k]; } NET.bus.post({ev:'hello',p:meInfo()}); paintLobby(); };
   clearInterval(NET.hb); NET.hb=setInterval(beat,2000); NET.ready=true; beat();
 }
-function netUpdateMe(){ if(NET.bus){ NET.lobby[myId]={...meInfo(),_t:Date.now()}; NET.bus.post({ev:'hello',p:meInfo()}); } paintLobby(); }
+let lastPic=0;
+function sendMyPic(force){ if(!NET.bus||!CH().custom||!OWN||!OWN.thumb) return; const now=Date.now(); if(!force&&now-lastPic<2500) return; lastPic=now; NET.bus.post({ev:'pic',p:{id:myId,src:OWN.thumb}}); }
+function netUpdateMe(){ sendMyPic(true); if(NET.bus){ NET.lobby[myId]={...meInfo(),_t:Date.now()}; NET.bus.post({ev:'hello',p:meInfo()}); } paintLobby(); }
 function netSend(ev,p){ if(NET.bus) NET.bus.post({ev,p}); }
 function netLeave(){
   clearInterval(NET.hb);
@@ -924,7 +977,7 @@ async function goLobby(){
 function paintLobby(){
   if($('#lobbyOv').hidden) return;
   const L=Object.values(NET.lobby); if(!L.find(m=>m.id===myId)) L.unshift(meInfo());
-  $('#players').innerHTML=L.map(m=>`<div class="player"><img src="assets/c_${validChar(m.char)}.png" alt=""><span><strong>${esc(m.name||'Player')}${m.id===myId?' (you)':''}</strong><small>${esc(charName(validChar(m.char)))}</small></span><em>READY</em></div>`).join('');
+  $('#players').innerHTML=L.map(m=>`<div class="player"><img src="${charSrc(validChar(m.char))}" alt=""><span><strong>${esc(m.name||'Player')}${m.id===myId?' (you)':''}</strong><small>${esc(charName(validChar(m.char)))}</small></span><em>READY</em></div>`).join('');
   $('#startRaceBtn').innerHTML = L.length>1 ? `Start race · ${L.length} runners <kbd>Enter</kbd>` : 'Start race <kbd>Enter</kbd>';
 }
 function startRace(){ if(state!=='lobby') return; const seed=(Math.random()*2147483647)|0; netSend('start',{id:myId,seed,name:getName()||'Player'}); beginCountdown(seed); }
@@ -951,7 +1004,7 @@ function paintRace(){
   rows.sort((a,b)=>b.score-a.score);
   const box=$('#race'), keep=new Set();
   rows.slice(0,5).forEach((r,i)=>{ keep.add(r.id); let c=RACEC[r.id];
-    if(!c){ c=document.createElement('div'); c.innerHTML=`<img src="assets/c_${validChar(r.char)}.png" alt=""><span></span>`; RACEC[r.id]=c; box.appendChild(c); }
+    if(!c){ c=document.createElement('div'); c.innerHTML=`<img src="${charSrc(validChar(r.char))}" alt=""><span></span>`; RACEC[r.id]=c; box.appendChild(c); }
     const cls=(r.me?'me ':'')+(r.alive===false?'out':''); if(c.className!==cls) c.className=cls;
     const t=`${r.me?'You':(r.name||'Friend')} ${fmt(r.score||0)}`; const sp=c.lastChild; if(sp.textContent!==t) sp.textContent=t;
     if(c.style.order!==String(i)) c.style.order=i; });
@@ -961,7 +1014,7 @@ function paintStandings(){
   if(MODE!=='multi'||$('#standings').hidden&&state!=='over') return;
   const rows=[{...myState(false),me:true}, ...Object.values(NET.peers).filter(s=>s.dist!=null)];
   rows.sort((a,b)=>b.score-a.score);
-  $('#standings').innerHTML=rows.map((r,i)=>`<div class="lbrow ${r.me?'mine':''}"><b>${i+1}</b><img src="assets/c_${validChar(r.char)}.png" alt=""><span><strong>${esc(r.me?'You':(r.name||'Friend'))}</strong><small>${r.alive===false?'Finished':'Still running…'} · ${fmt(r.dist||0)} m${r.ps5?` · <img src="assets/ps5.png" alt="">×${r.ps5}`:''}</small></span><span class="pts">${fmt(r.score||0)}</span></div>`).join('');
+  $('#standings').innerHTML=rows.map((r,i)=>`<div class="lbrow ${r.me?'mine':''}"><b>${i+1}</b><img src="${charSrc(validChar(r.char))}" alt=""><span><strong>${esc(r.me?'You':(r.name||'Friend'))}</strong><small>${r.alive===false?'Finished':'Still running…'} · ${fmt(r.dist||0)} m${r.ps5?` · <img src="assets/ps5.png" alt="">×${r.ps5}`:''}</small></span><span class="pts">${fmt(r.score||0)}</span></div>`).join('');
 }
 setInterval(()=>{ if(state==='over'&&MODE==='multi') paintStandings(); },500);
 function paintInvite(){ const n=$('#inviteNote'); if(urlRoom && !NET.room){ n.hidden=false; n.textContent=`You're invited to race in room ${urlRoom}. Tap Play with friends to join.`; $('#friendsBtn').textContent='Join room '+urlRoom; } else { n.hidden=true; $('#friendsBtn').textContent='Play with friends'; } }
@@ -1008,12 +1061,96 @@ async function openLB(){
   try{
     const L=await lbFetch();
     $('#lbList').innerHTML = L.length ? L.map((r,i)=>{ const mine=lastSaved && r.name===lastSaved.name && r.score===lastSaved.score;
-      return `<div class="lbrow ${mine?'mine':''}"><b>${i+1}</b><img src="assets/c_${validChar(r.runner)}.png" alt=""><span><strong>${esc(r.name)}</strong><small>${esc(charName(validChar(r.runner)))} · ${fmt(r.dist||0)} m${r.ps5?` · <img src="assets/ps5.png" alt="">×${r.ps5}`:''}</small></span><span class="pts">${fmt(r.score)}</span></div>`; }).join('')
+      return `<div class="lbrow ${mine?'mine':''}"><b>${i+1}</b><img src="${charSrc(validChar(r.runner))}" alt=""><span><strong>${esc(r.name)}</strong><small>${esc(charName(validChar(r.runner)))} · ${fmt(r.dist||0)} m${r.ps5?` · <img src="assets/ps5.png" alt="">×${r.ps5}`:''}</small></span><span class="pts">${fmt(r.score)}</span></div>`; }).join('')
       : '<p class="note">No scores yet. Finish a run to be first.</p>';
   }catch(e){ $('#lbList').innerHTML='<p class="note">Could not load the leaderboard. Check your internet and try again.</p>'; }
 }
 $('#lbBtn').onclick=openLB; $('#lbBtn2').onclick=openLB;
 $('#lbClose').onclick=()=>{ const back=$('#lbOv').dataset.back; $('#lbOv').hidden=true; if(back==='over'){ state='over'; $('#overOv').hidden=false; } else { state='start'; $('#startOv').hidden=false; } };
+
+
+/* ================= make your own runner =================
+   Runs on the phone: MediaPipe finds the face and separates the person from the background,
+   then the cut-out is framed exactly like the creator cut-outs (face at the top, chest below). */
+const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const FACE_MODEL='https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
+const SEG_MODEL='https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
+let VIS=null, DRAFT=null, makerBack='select';
+async function loadVision(){
+  if(VIS) return VIS;
+  const m=await import(MP+'/vision_bundle.mjs');
+  const fs=await m.FilesetResolver.forVisionTasks(MP+'/wasm');
+  const face=await m.FaceDetector.createFromOptions(fs,{baseOptions:{modelAssetPath:FACE_MODEL,delegate:'CPU'},runningMode:'IMAGE',minDetectionConfidence:.5});
+  const seg=await m.ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetPath:SEG_MODEL,delegate:'CPU'},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});
+  VIS={face,seg}; return VIS;
+}
+function makeStatus(t,err){ const el=$('#makeStatus'); el.textContent=t; el.classList.toggle('err',!!err); }
+async function fileToCanvas(file){
+  let bmp; try{ bmp=await createImageBitmap(file,{imageOrientation:'from-image'}); }catch(e){ bmp=await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=URL.createObjectURL(file); }); }
+  const w=bmp.width, h=bmp.height, k=Math.min(1,1100/Math.max(w,h));
+  const c=document.createElement('canvas'); c.width=Math.round(w*k); c.height=Math.round(h*k); c.getContext('2d').drawImage(bmp,0,0,c.width,c.height); return c;
+}
+async function cutOut(file){
+  makeStatus('Loading the cut-out tool… (first time takes a few seconds)');
+  const V=await loadVision();
+  makeStatus('Finding your face…');
+  const src=await fileToCanvas(file);
+  const det=V.face.detect(src).detections||[];
+  if(!det.length) throw new Error('noface');
+  const fb=det.map(d=>d.boundingBox).sort((a,b)=>b.width*b.height-a.width*a.height)[0];
+  makeStatus('Cutting you out…');
+  const res=V.seg.segment(src); const masks=res.confidenceMasks||[]; if(!masks.length) throw new Error('nomask');
+  const mk=masks[masks.length-1], mw=mk.width, mh=mk.height, conf=mk.getAsFloat32Array();
+  const person = masks.length===1 ? (v=>v) : (v=>v);   // last mask = person
+  const cut=document.createElement('canvas'); cut.width=src.width; cut.height=src.height; const g=cut.getContext('2d'); g.drawImage(src,0,0);
+  const id=g.getImageData(0,0,cut.width,cut.height), px=id.data;
+  for(let y=0;y<cut.height;y++){ const my=Math.min(mh-1,Math.floor(y*mh/cut.height)); for(let x=0;x<cut.width;x++){ const mx=Math.min(mw-1,Math.floor(x*mw/cut.width));
+    let v=person(conf[my*mw+mx]); v=v<.35?0:v>.65?1:(v-.35)/.3; px[(y*cut.width+x)*4+3]=Math.round(px[(y*cut.width+x)*4+3]*v); } }
+  g.putImageData(id,0,0);
+  try{ masks.forEach(m=>m.close()); res.close&&res.close(); }catch(e){}
+  // same framing as the creator cut-outs: 0.75 face-heights above, 2.6 below, 4.6 face-widths across
+  const fx=fb.originX, fy=fb.originY, fw=fb.width, fh=fb.height;
+  const top=fy-fh*.75, bottom=fy+fh*3.6, cx=fx+fw/2, half=fw*2.3;
+  const sx=Math.max(0,cx-half), sy=Math.max(0,top), ex=Math.min(cut.width,cx+half), ey=Math.min(cut.height,bottom);
+  const outH=400, scale=outH/(bottom-top), out=document.createElement('canvas'); out.width=Math.round(half*2*scale); out.height=outH;
+  out.getContext('2d').drawImage(cut,sx,sy,ex-sx,ey-sy,(sx-(cx-half))*scale,(sy-top)*scale,(ex-sx)*scale,(ey-sy)*scale);
+  const enc=(c,q)=>{ let d=c.toDataURL('image/webp',q); if(!d.startsWith('data:image/webp')) d=c.toDataURL('image/png'); return d; };
+  const th=document.createElement('canvas'); th.height=200; th.width=Math.round(out.width*200/out.height); th.getContext('2d').drawImage(out,0,0,th.width,th.height);
+  return {img:enc(out,.88), thumb:enc(th,.8)};
+}
+function paintSigs(sel){ $('#ownSigs').innerHTML=Object.keys(PRODUCTS).map(k=>`<button type="button" data-k="${k}" aria-pressed="${k===sel}" title="${PRODUCTS[k]}"><img src="assets/${k}.png" alt="${PRODUCTS[k]}"></button>`).join('');
+  $('#ownSigs').querySelectorAll('button').forEach(b=>b.onclick=()=>{ DRAFT.sig=b.dataset.k; paintSigs(DRAFT.sig); }); }
+function paintPreview(){ const pv=$('#makePrev'); pv.querySelectorAll('img').forEach(i=>i.remove()); $('#makePh').hidden=!!DRAFT.img; if(DRAFT.img){ const im=new Image(); im.src=DRAFT.img; im.alt='Your runner'; pv.appendChild(im); } $('#ownUse').disabled=!DRAFT.img; }
+function openMaker(){
+  makerBack=state; state='make';
+  DRAFT={img:OWN&&OWN.img||null, thumb:OWN&&OWN.thumb||null, name:OWN&&OWN.name||getName()||'', sig:OWN&&OWN.sig||'pp_choc'};
+  ['#selectOv','#startOv'].forEach(id=>$(id).hidden=true); $('#makeOv').hidden=false;
+  $('#ownName').value=DRAFT.name; paintSigs(DRAFT.sig); paintPreview(); makeStatus('');
+}
+async function handlePhoto(file){
+  if(!file) return;
+  $('#selfieBtn').disabled=$('#photoBtn').disabled=true;
+  try{ const r=await cutOut(file); DRAFT.img=r.img; DRAFT.thumb=r.thumb; paintPreview(); makeStatus('Looking good! Name your runner and tap Use this runner.'); sfx.power(); }
+  catch(e){ makeStatus(e&&e.message==='noface' ? "Couldn't find a face. Try a clear photo facing the camera." : "Couldn't make the cut-out. Check your internet and try again.", true); }
+  finally{ $('#selfieBtn').disabled=$('#photoBtn').disabled=false; $('#selfieIn').value=''; $('#photoIn').value=''; }
+}
+$('#selfieBtn').onclick=()=>$('#selfieIn').click();
+$('#photoBtn').onclick=()=>$('#photoIn').click();
+$('#selfieIn').onchange=e=>handlePhoto(e.target.files[0]);
+$('#photoIn').onchange=e=>handlePhoto(e.target.files[0]);
+$('#ownName').addEventListener('input',e=>{ DRAFT.name=e.target.value; });
+$('#ownBack').onclick=()=>{ $('#makeOv').hidden=true; openSelect(); };
+$('#ownUse').onclick=()=>{
+  if(!DRAFT.img) return;
+  OWN={img:DRAFT.img, thumb:DRAFT.thumb, name:(DRAFT.name||'').trim().slice(0,16)||'Me', sig:DRAFT.sig};
+  try{ localStorage.setItem('salerush-own',JSON.stringify(OWN)); }catch(e){ makeStatus('Your phone is out of space for saved data, so this runner lasts until you close the game.', true); }
+  if(!getName()) setName(OWN.name);
+  const i=CHARS.findIndex(c=>c.custom); const ch={id:'me',name:OWN.name,from:'Your own runner',sig:OWN.sig,custom:true};
+  if(i>=0) CHARS[i]=ch; else CHARS.unshift(ch);
+  load('c_me',OWN.img);
+  charIdx=CHARS.findIndex(c=>c.custom); try{ localStorage.setItem('salerush-char','me'); }catch(e){}
+  $('#makeOv').hidden=true; openSelect(); sendMyPic(true);
+};
 
 /* test hook: ?debug=1 lets a tester freeze the catch scene at a moment, e.g. __catchAt(1.6) */
 if(/[?&]debug=1/.test(location.search)) window.__catchAt=(t)=>{ if(state!=='caught'){ MODE='solo'; startRun(12345); cancelAnimationFrame(raf); G.chase=.8; crash({type:'car'}); cancelAnimationFrame(raf); } G.anim.t=t; G.anim.lastBonk=-9; const n=Math.floor((t-BONK_T)/BONK_DT); if(t>=BONK_T&&n<BONKS){ const u=(t-BONK_T-n*BONK_DT)/BONK_DT; if(u>=.55){ G.anim.lastBonk=t-(u-.55)*BONK_DT; G.anim.word=BONK_WORDS[n]; G.anim.bonks=n+1; } } G.shake=0; draw(); return state; };
@@ -1021,6 +1158,6 @@ if(/[?&]debug=1/.test(location.search)) window.__catchAt=(t)=>{ if(state!=='caug
 resize(); seedWorld();
 for(let z=26;z<FAR;z+=18) spawnRow(z);
 G.objs=G.objs.filter(o=>!(Math.abs(o.z-PZ)<4));
-(function idle(){ if(state==='start'||state==='select'||state==='lobby'||state==='count'||state==='lb'){ G.t+=1/60; G.dist+=.12; G.p.phase+=.18; G.clouds.forEach(c=>{ c.x-=.0004*c.s; if(c.x<-.3) c.x=1.2; }); draw(); } requestAnimationFrame(idle); })();
+(function idle(){ if(state==='start'||state==='select'||state==='make'||state==='lobby'||state==='count'||state==='lb'){ G.t+=1/60; G.dist+=.12; G.p.phase+=.18; G.clouds.forEach(c=>{ c.x-=.0004*c.s; if(c.x<-.3) c.x=1.2; }); draw(); } requestAnimationFrame(idle); })();
 })();
 </script>
