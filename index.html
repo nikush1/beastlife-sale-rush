@@ -498,7 +498,7 @@ function update(dt){
     if(hit){ if(G.pw.shield>0){ o.dead=true; G.score+=25*mult; sfx.smash(); flash('Smashed it'); } else return crash(o); }
   }
   G.objs=G.objs.filter(o=>!o.dead && o.z+(o.d||0)>NEAR);
-  if(MODE==='multi' && NET.room){ const now=performance.now(); if(now-NET.lastSend>100){ NET.lastSend=now; netSend('st',myState(true)); } if(now-NET.lastRace>300){ NET.lastRace=now; paintRace(); } }
+  if(MODE==='multi' && NET.room){ const now=performance.now(); if(now-NET.lastSend>125){ NET.lastSend=now; netSend('st',myState(true)); } if(now-NET.lastRace>300){ NET.lastRace=now; paintRace(); } }
   for(const id in NET.peers){ const s=NET.peers[id]; if(s.x!=null){ s.rx=(s.rx==null?s.x:s.rx+(s.x-s.rx)*Math.min(1,dt*10)); } }
   $('#ps5n').textContent=G.ps5;
   $('#score').textContent=fmt(G.score); $('#packs').textContent=G.packs; $('#mult').textContent=mult>1?'2×':'';
@@ -699,10 +699,12 @@ function draw(){
 
 
 /* ================= online: rooms + leaderboard =================
-   SUPA is filled in once the free Supabase project exists. Without it, rooms work between tabs of one
-   browser (for testing) and the leaderboard is kept on this device. */
-const SUPA={url:'',key:''};
-const ONLINE=()=>!!(SUPA.url&&SUPA.key);
+   Uses a free public MQTT message broker over secure websockets (no account). Room messages go to
+   one topic per room; each phone's best score is a retained message, so the leaderboard is rebuilt
+   from those on every visit. If the broker can't be reached, rooms fall back to tabs in one browser. */
+const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+const TOPIC='beastlife-salerush/v1';
+const ONLINE=()=>true;
 let MODE='solo';
 const myId=(()=>{ try{ let v=sessionStorage.getItem('sr-id'); if(!v){ v=Math.random().toString(36).slice(2,10); sessionStorage.setItem('sr-id',v); } return v; }catch(e){ return Math.random().toString(36).slice(2,10); } })();
 const NET={room:null,ch:null,bc:null,hb:0,peers:{},lobby:{},ready:false,lastSend:0,lastRace:0,inRace:false};
@@ -714,8 +716,21 @@ const validChar=id=>CHARS.some(c=>c.id===id) ? id : CHARS[0].id;
 function meInfo(){ return {id:myId,name:getName()||'Player',char:CH().id}; }
 function myState(alive){ const p=G.p; return {id:myId,name:getName()||'Player',char:CH().id,x:+p.x.toFixed(2),y:+p.y.toFixed(2),slide:p.slide>0,dist:+G.dist.toFixed(1),speed:+G.speed.toFixed(1),score:Math.floor(G.score),ps5:G.ps5,alive}; }
 
-let sbClient=null;
-function loadSupabase(){ return new Promise((res,rej)=>{ if(window.supabase) return res(); const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+let mqPromise=null; const mqHandlers=new Map();
+function connectBroker(url){ return new Promise((res,rej)=>{
+  const c=window.mqtt.connect(url,{clientId:'sr_'+myId+'_'+Math.random().toString(36).slice(2,6),keepalive:30,reconnectPeriod:2000,connectTimeout:7000,clean:true});
+  const t=setTimeout(()=>{ c.end(true); rej(new Error('timeout')); },8000);
+  c.once('connect',()=>{ clearTimeout(t); res(c); });
+  c.on('message',(topic,buf,pk)=>{ let m; try{ m=JSON.parse(buf.toString()); }catch(e){ return; } for(const [pre,fn] of mqHandlers){ if(topic===pre || (pre.endsWith('/+') && topic.startsWith(pre.slice(0,-1)))) fn(m,topic,pk); } });
+}); }
+function mq(){
+  if(mqPromise) return mqPromise;
+  mqPromise=(async()=>{ if(!window.mqtt) await loadScript('https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js');
+    let err; for(const u of BROKERS){ try{ return await connectBroker(u); }catch(e){ err=e; } } throw err||new Error('offline'); })();
+  mqPromise.catch(()=>{ mqPromise=null; });
+  return mqPromise;
+}
 const newCode=()=>{ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<5;i++) c+=A[Math.floor(Math.random()*A.length)]; return c; };
 const urlRoom=(()=>{ try{ const r=new URLSearchParams(location.search).get('room'); return r && /^[A-Z0-9]{4,6}$/i.test(r) ? r.toUpperCase() : null; }catch(e){ return null; } })();
 function inviteURL(){ return location.origin+location.pathname+'?room='+NET.room; }
@@ -723,27 +738,30 @@ function inviteURL(){ return location.origin+location.pathname+'?room='+NET.room
 async function netJoin(room){
   NET.room=room; NET.lobby={}; NET.peers={}; NET.ready=false;
   try{ history.replaceState(null,'','?room='+room); }catch(e){}
-  if(ONLINE()){
-    try{ await loadSupabase(); sbClient=sbClient||window.supabase.createClient(SUPA.url,SUPA.key); }
-    catch(e){ lobbyMsg('Could not load the online service. Check your internet and reopen the link.'); return; }
-    const ch=sbClient.channel('salerush-'+room,{config:{broadcast:{self:false},presence:{key:myId}}});
-    ch.on('presence',{event:'sync'},()=>{ const st=ch.presenceState(), L={}; Object.values(st).forEach(a=>{ const m=a[a.length-1]; if(m&&m.id) L[m.id]=m; }); NET.lobby=L; paintLobby(); });
-    ['start','st','over'].forEach(ev=>ch.on('broadcast',{event:ev},msg=>onNet(ev,msg.payload)));
-    ch.subscribe(st=>{ if(st==='SUBSCRIBED'){ NET.ready=true; ch.track(meInfo()); lobbyMsg(''); paintLobby(); } else if(st==='CHANNEL_ERROR'||st==='TIMED_OUT'){ lobbyMsg('Connection lost. Check your internet; the room reconnects by itself.'); } });
-    NET.ch=ch;
-  } else {
-    const bc=new BroadcastChannel('salerush-'+room); NET.bc=bc;
-    bc.onmessage=e=>{ const {ev,p}=e.data||{}; if(!p) return; if(ev==='hello'){ NET.lobby[p.id]={...p,_t:Date.now()}; paintLobby(); } else if(ev==='bye'){ delete NET.lobby[p.id]; paintLobby(); } else onNet(ev,p); };
-    const beat=()=>{ const now=Date.now(); NET.lobby[myId]={...meInfo(),_t:now}; for(const k in NET.lobby){ if(k!==myId && now-NET.lobby[k]._t>4000) delete NET.lobby[k]; } bc.postMessage({ev:'hello',p:meInfo()}); paintLobby(); };
-    clearInterval(NET.hb); NET.hb=setInterval(beat,1000); NET.ready=true; beat();
-    lobbyMsg('Test mode: rooms only connect tabs in this browser until online play is switched on.');
+  const handle=m=>{ const ev=m&&m.ev, p=m&&m.p; if(!p||p.id===myId) return;
+    if(ev==='hello'){ if(typeof p.name!=='string') return; NET.lobby[p.id]={id:p.id,name:p.name.slice(0,16),char:validChar(p.char),_t:Date.now()}; paintLobby(); }
+    else if(ev==='bye'){ delete NET.lobby[p.id]; paintLobby(); }
+    else onNet(ev,p); };
+  lobbyMsg('Connecting…');
+  try{
+    const c=await mq(); if(NET.room!==room) return;
+    const t=`${TOPIC}/room/${room}`;
+    mqHandlers.set(t,handle); await new Promise(r=>c.subscribe(t,{qos:0},r));
+    NET.bus={post:m=>{ try{ c.publish(t,JSON.stringify(m),{qos:0}); }catch(e){} }, close:()=>{ try{ c.unsubscribe(t); }catch(e){} mqHandlers.delete(t); }};
+    lobbyMsg('');
+  }catch(e){
+    const bc=new BroadcastChannel('salerush-'+room); bc.onmessage=ev=>handle(ev.data);
+    NET.bus={post:m=>bc.postMessage(m), close:()=>bc.close()};
+    lobbyMsg('Could not reach the game server, so only this phone is in the room. Check your internet and open the invite again.');
   }
+  const beat=()=>{ const now=Date.now(); NET.lobby[myId]={...meInfo(),_t:now}; for(const k in NET.lobby){ if(k!==myId && now-NET.lobby[k]._t>6000) delete NET.lobby[k]; } NET.bus.post({ev:'hello',p:meInfo()}); paintLobby(); };
+  clearInterval(NET.hb); NET.hb=setInterval(beat,2000); NET.ready=true; beat();
 }
-function netUpdateMe(){ if(NET.ch&&NET.ready) NET.ch.track(meInfo()); if(NET.bc){ NET.lobby[myId]={...meInfo(),_t:Date.now()}; NET.bc.postMessage({ev:'hello',p:meInfo()}); } paintLobby(); }
-function netSend(ev,p){ try{ if(NET.ch&&NET.ready) NET.ch.send({type:'broadcast',event:ev,payload:p}); if(NET.bc) NET.bc.postMessage({ev,p}); }catch(e){} }
+function netUpdateMe(){ if(NET.bus){ NET.lobby[myId]={...meInfo(),_t:Date.now()}; NET.bus.post({ev:'hello',p:meInfo()}); } paintLobby(); }
+function netSend(ev,p){ if(NET.bus) NET.bus.post({ev,p}); }
 function netLeave(){
-  if(NET.ch){ try{ NET.ch.untrack(); sbClient.removeChannel(NET.ch); }catch(e){} NET.ch=null; }
-  if(NET.bc){ try{ NET.bc.postMessage({ev:'bye',p:{id:myId}}); NET.bc.close(); }catch(e){} NET.bc=null; clearInterval(NET.hb); }
+  clearInterval(NET.hb);
+  if(NET.bus){ try{ NET.bus.post({ev:'bye',p:{id:myId}}); NET.bus.close(); }catch(e){} NET.bus=null; }
   NET.room=null; NET.inRace=false; NET.peers={}; NET.lobby={}; NET.ready=false;
   try{ history.replaceState(null,'',location.pathname); }catch(e){}
 }
@@ -805,21 +823,28 @@ function paintStandings(){
 setInterval(()=>{ if(state==='over'&&MODE==='multi') paintStandings(); },500);
 function paintInvite(){ const n=$('#inviteNote'); if(urlRoom && !NET.room){ n.hidden=false; n.textContent=`You're invited to race in room ${urlRoom}. Tap Play with friends to join.`; $('#friendsBtn').textContent='Join room '+urlRoom; } else { n.hidden=true; $('#friendsBtn').textContent='Play with friends'; } }
 paintInvite();
-const TESTMODE=/[?&]test=1/.test(location.search);
-if(!ONLINE() && !TESTMODE){ $('#friendsBtn').hidden=true; $('.btnrow').style.gridTemplateColumns='1fr'; }
 
 /* leaderboard */
-function sbHeaders(json){ const h={apikey:SUPA.key}; if(!SUPA.key.startsWith('sb_')) h.Authorization='Bearer '+SUPA.key; if(json){ h['Content-Type']='application/json'; h.Prefer='return=minimal'; } return h; }
 function localLB(){ try{ return JSON.parse(localStorage.getItem('salerush-lb')||'[]'); }catch(e){ return []; } }
+const devKey=(()=>{ try{ let v=localStorage.getItem('salerush-dev'); if(!v){ v=Math.random().toString(36).slice(2,12); localStorage.setItem('salerush-dev',v); } return v; }catch(e){ return myId; } })();
+const int=(v,max)=>Number.isInteger(v)&&v>=0&&v<=max;
+function validRow(r){ return r && typeof r.name==='string' && r.name.trim().length>=1 && r.name.length<=16 && typeof r.runner==='string' && int(r.score,5000000) && int(r.packs||0,100000) && int(r.ps5||0,1000) && int(r.dist||0,10000000); }
 async function lbFetch(){
-  if(!ONLINE()) return localLB();
-  const r=await fetch(`${SUPA.url}/rest/v1/scores?select=name,runner,score,packs,ps5,dist&order=score.desc&limit=30`,{headers:sbHeaders()});
-  if(!r.ok) throw new Error('lb'); return r.json();
+  const c=await mq(); const t=`${TOPIC}/lb/+`; const rows={};
+  mqHandlers.set(t,(m,topic)=>{ if(validRow(m)) rows[topic]=m; });
+  await new Promise(r=>c.subscribe(t,{qos:0},r));
+  await new Promise(r=>setTimeout(r,1800));
+  try{ c.unsubscribe(t); }catch(e){} mqHandlers.delete(t);
+  return Object.values(rows).sort((a,b)=>b.score-a.score).slice(0,30);
 }
 async function lbSubmit(row){
-  if(!ONLINE()){ const L=localLB(); L.push(row); L.sort((a,b)=>b.score-a.score); try{ localStorage.setItem('salerush-lb',JSON.stringify(L.slice(0,30))); }catch(e){} return; }
-  const r=await fetch(`${SUPA.url}/rest/v1/scores`,{method:'POST',headers:sbHeaders(true),body:JSON.stringify(row)});
-  if(!r.ok) throw new Error('save');
+  const L=localLB(); L.push(row); L.sort((a,b)=>b.score-a.score); try{ localStorage.setItem('salerush-lb',JSON.stringify(L.slice(0,30))); }catch(e){}
+  let prev=0; try{ prev=+localStorage.getItem('salerush-lbbest')||0; }catch(e){}
+  if(row.score<=prev) return 'notbest';
+  const c=await mq();
+  await new Promise((res,rej)=>c.publish(`${TOPIC}/lb/${devKey}`,JSON.stringify({name:row.name,runner:row.runner,score:row.score,packs:row.packs,ps5:row.ps5,dist:row.dist}),{qos:1,retain:true},e=>e?rej(e):res()));
+  try{ localStorage.setItem('salerush-lbbest',row.score); }catch(e){}
+  return 'saved';
 }
 let lastRow=null, lastSaved=null;
 function afterRunSave(row){
@@ -828,13 +853,14 @@ function afterRunSave(row){
   if(row.name){ saveRow(row); } else { $('#nameRow').hidden=false; $('#nameOver').value=''; }
 }
 async function saveRow(row){
-  try{ await lbSubmit(row); lastSaved=row; $('#savedMsg').hidden=false; $('#savedMsg').textContent=`Saved to the leaderboard as ${row.name}.`; }
+  try{ const r=await lbSubmit(row); lastSaved=row; $('#savedMsg').hidden=false;
+    $('#savedMsg').textContent = r==='notbest' ? `Run saved. The leaderboard shows each phone's best score, and yours is higher.` : `New best on the leaderboard as ${row.name}!`; }
   catch(e){ $('#savedMsg').hidden=false; $('#savedMsg').textContent='Could not save the score. Check your internet.'; }
 }
 $('#saveScoreBtn').onclick=()=>{ const v=setName($('#nameOver').value); if(!v){ $('#nameOver').focus(); return; } $('#nameRow').hidden=true; if(lastRow){ lastRow.name=v; saveRow(lastRow); } };
 async function openLB(){
   const prev=state; state='lb'; ['#startOv','#overOv'].forEach(id=>$(id).hidden=true); $('#lbOv').hidden=false; $('#lbOv').dataset.back=prev;
-  $('#lbNote').textContent = ONLINE() ? 'Top scores from everyone who has played.' : 'Scores on this phone only, until online play is switched on.';
+  $('#lbNote').textContent = 'Best score from every phone that has played.';
   $('#lbList').innerHTML='<p class="note">Loading…</p>';
   try{
     const L=await lbFetch();
