@@ -30,6 +30,18 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 body.cam #camMini{display:block}
 body.cam.camhide #camMini{display:none}
 #camToggle{display:none}body.cam #camToggle{display:inline-block}
+#prac{position:fixed;left:0;top:0;bottom:0;width:50%;z-index:9;display:flex;flex-direction:column;gap:10px;padding:max(14px,env(safe-area-inset-top)) 16px 16px max(16px,env(safe-area-inset-left));background:var(--bg);overflow-y:auto;border-right:1px solid var(--line)}
+#pracCam{width:100%;height:auto!important;aspect-ratio:4/3;border-radius:12px;background:#000;flex:none}
+#pracList{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px}
+#pracList div{display:flex;gap:8px;align-items:flex-start;background:var(--glass2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;line-height:1.3;transition:background .15s}
+#pracList b{display:block;font-size:12px}
+#pracList i{font-style:normal;font:800 14px var(--f-mono);color:var(--mute)}
+#pracList .ok{border-color:rgba(200,245,58,.5)} #pracList .ok i{color:var(--lime)}
+#pracList .hit{background:rgba(255,122,26,.35)}
+#pracSpeed b{color:var(--fg)}
+body.practice #app{left:50%}
+body.practice #camMini,body.practice #camToggle{display:none!important}
+@media (max-width:820px){ #prac{width:100%;bottom:auto;max-height:55%} body.practice #app{left:0;top:55%} }
 .topbtns{position:absolute;top:14%;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:6}
 .iconbtn{background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font:700 12px var(--f-mono);min-height:30px;min-width:34px;opacity:.85}
 
@@ -219,27 +231,34 @@ input[type=text]{min-height:48px;border-radius:8px;border:1px solid var(--line);
   <div class="panel">
     <span class="eyebrow">Motion control · webcam</span>
     <h2>Fight with your body</h2>
-    <p class="lede">Your camera watches you and your fighter copies you. Put the laptop on a table, step back 2–3 steps so your head to knees are in the picture, and keep the room well lit. Tracking runs on this computer: nothing is recorded or sent.</p>
+    <p class="lede">Your camera watches you and your fighter copies you. You can play sitting on a chair: only your head, shoulders and hands need to be in view. Tracking runs on this computer: nothing is recorded or sent.</p>
+    <div><div class="fine" style="margin-bottom:6px">How are you playing?</div><div class="seg" id="camPose"><button data-p="sit">🪑 Sitting (hands + lean)</button><button data-p="stand">🧍 Standing (full body)</button></div></div>
     <div class="row" style="align-items:flex-start">
       <canvas id="camBig" width="480" height="360" style="width:min(100%,420px);height:auto;aspect-ratio:4/3;border-radius:12px;background:#000;border:1px solid var(--line)"></canvas>
-      <div class="ctl" style="flex:1;min-width:240px;grid-template-columns:repeat(2,minmax(0,1fr))">
-        <div><b>Punch</b>Snap a fast punch at the screen or across, either hand</div>
-        <div><b>Kick</b>Lift a knee up, or swing a foot out. Legs not in view? Swing an arm low and sideways</div>
-        <div><b>Jump</b>Hop up</div>
-        <div><b>Duck</b>Squat down</div>
-        <div><b>Block</b>Both fists together in front of your face</div>
-        <div><b>Move</b>Step left or right</div>
-        <div><b>Throw product</b>Punch with both hands together</div>
-        <div><b>Super</b>Both hands up over your head</div>
-      </div>
+      <div class="ctl" id="camMoves" style="flex:1;min-width:240px;grid-template-columns:repeat(2,minmax(0,1fr))"></div>
     </div>
     <p class="status" id="camStatus"></p>
     <div><div class="fine" style="margin-bottom:6px">Gesture sensitivity</div><div class="seg" id="camSens"><button data-s="0">Low</button><button data-s="1">Normal</button><button data-s="2">High</button></div></div>
     <div class="seg" id="camPlayers"><button data-n="1">1 player</button><button data-n="2">2 players, one camera</button></div>
     <div class="btnrow"><button class="btn ghost" id="camStart">Start camera</button><button class="btn ghost" id="camRecal" hidden>Recalibrate</button><button class="btn ghost" id="camOff" hidden>Camera off</button></div>
+    <div class="btnrow"><button class="btn" id="camPractice" disabled style="background:#3fb4ff;color:#06131f">🥊 Practice room (try every move)</button></div>
     <div class="btnrow"><button class="btn ghost" id="camBack">← Back</button><button class="btn" id="camGo" disabled>Pick fighters →</button><button class="btn orange" id="camOnline" disabled>Fight a friend online</button></div>
-    <p class="fine">Tips: if moves don't register, try High sensitivity; if you get moves you didn't make, try Low. Tap the small camera picture during a fight to recalibrate, or 📷 at the top to hide it. Keyboard still works alongside the camera.</p>
+    <p class="fine">Tips: sit an arm's length or more from the laptop with a light in front of you. Moves missed? Try High sensitivity. Moves you didn't make? Try Low. During a fight, tap the small camera picture to recalibrate, or 📷 at the top to hide it.</p>
   </div>
+</div>
+
+<!-- practice room: camera on the left, your fighter on the right -->
+<div id="prac" hidden>
+  <span class="eyebrow">Practice room</span>
+  <h2 style="font-size:clamp(26px,4vw,38px)">Try every move</h2>
+  <canvas id="pracCam" width="640" height="480"></canvas>
+  <p class="status" id="pracStatus"></p>
+  <p class="fine" id="pracSpeed"></p>
+  <div class="row" style="justify-content:space-between"><b id="pracCount" style="font:800 13px var(--f-mono);color:var(--lime)"></b></div>
+  <div id="pracList"></div>
+  <div class="seg" id="pracPose"><button data-p="sit">🪑 Sitting</button><button data-p="stand">🧍 Standing</button></div>
+  <div class="seg" id="pracSens"><button data-s="0">Low</button><button data-s="1">Normal</button><button data-s="2">High</button></div>
+  <div class="btnrow"><button class="btn ghost" id="pracBack">← Back</button><button class="btn ghost" id="pracRecal">Recalibrate</button><button class="btn" id="pracGo">I'm ready: fight →</button></div>
 </div>
 
 <!-- result -->
@@ -845,8 +864,8 @@ function loop(t){
     acc+=dt; let n=0;
     while(acc>=1/60 && n<5){ acc-=1/60; n++;
       const myIn=readInput(IN,lastCnt[0]);
-      const i1 = G.mode==='cpu' ? cpuInput(G.f[1],G.f[0],G.diff) : G.mode==='local2' ? readInput(CAM2,lastCnt[1]) : G.mode==='host' ? readInput(netIn||{h:{},c:{}},lastCnt[1]) : {h:{},p:{}};
-      step([myIn,i1]);
+      const i1 = G.mode==='practice' ? {h:{},p:{}} : G.mode==='cpu' ? cpuInput(G.f[1],G.f[0],G.diff) : G.mode==='local2' ? readInput(CAM2,lastCnt[1]) : G.mode==='host' ? readInput(netIn||{h:{},c:{}},lastCnt[1]) : {h:{},p:{}};
+      step([myIn,i1]); if(G.mode==='practice') practiceTick();
       handleEvents();
     }
   }
@@ -1071,47 +1090,56 @@ $('#mkUse').onclick=()=>{ if(!DRAFT.img) return; OWN={img:DRAFT.img,thumb:DRAFT.
 
 /* ================= webcam motion control =================
    MediaPipe Pose runs on this computer and watches 33 body points. Moves become the same button presses
-   the keyboard makes, so it works vs the CPU, online, and for two people in front of one camera. */
+   the keyboard makes, so it works vs the CPU, online, and for two people in front of one camera.
+   Sitting mode needs only head, shoulders and hands; standing mode also uses steps, squats and knees. */
 const POSE_MODEL='https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
-const CAM={on:false,video:null,stream:null,lm:null,players:1,eng:[],last:-1};
+const CAM={on:false,video:null,stream:null,lm:null,players:1,eng:[],last:-1,seated:true,fps:0,lat:0,frames:0,fpsT:0,latAcc:0,latN:0};
+try{ CAM.seated=localStorage.getItem('fight-camseat')!=='0'; }catch(e){}
 const CAM2={h:{l:0,r:0,u:0,d:0,b:0},c:{p:0,k:0,s:0,x:0,u:0}};
+const PRAC={on:false,done:new Set(),hitT:{}};
 const avgA=a=>a.reduce((s,v)=>s+v,0)/a.length;
-function camStatus(t,err){ const s=$('#camStatus'); if(s){ s.textContent=t; s.classList.toggle('err',!!err); } }
-function newEngine(){ return {base:null,calib:[],prev:null,prevT:0,cd:{p0:0,p1:0,k:0,u:0,s:0,x:0},ohT:0,label:'',labelT:0,lmk:null,punchT:[0,0],cx:null}; }
+function camStatus(t,err){ for(const id of ['#camStatus','#pracStatus']){ const s=$(id); if(s){ s.textContent=t; s.classList.toggle('err',!!err); } } }
+function newEngine(){ return {base:null,calib:[],prev:null,prevT:0,cd:{p0:0,p1:0,k:0,u:0,s:0,x:0},ohT:0,lastOH:0,label:'',labelT:0,lmk:null,punchT:[0,0],cx:null,hist:[[],[]]}; }
+const calibMsg=()=>CAM.players===2?'Both players: get in view side by side, arms down, and hold still…':CAM.seated?'Sit back so your head, shoulders and both hands are in view, and hold still…':'Stand back so your head to knees are in view, arms down, and hold still…';
 async function camStart(){
   if(CAM.on) return true;
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ camStatus('This browser has no camera access. Try Chrome on a laptop.',true); return false; }
   camStatus('Asking for the camera…'); $('#camStart').disabled=true;
   try{
-    try{ CAM.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false}); }
-    catch(e){ camStatus(e&&e.name==='NotFoundError'?'No camera found on this device.':'Camera blocked. Click the camera icon in the address bar, allow it, then try again.',true); return false; }
+    try{ CAM.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:60,min:24},facingMode:'user'},audio:false}); }
+    catch(e){ try{ CAM.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false}); }catch(e2){ camStatus(e2&&e2.name==='NotFoundError'?'No camera found on this device.':'Camera blocked. Click the camera icon in the address bar, allow it, then try again.',true); return false; } }
     const v=document.createElement('video'); v.playsInline=true; v.muted=true; v.srcObject=CAM.stream; await v.play(); CAM.video=v;
     camStatus('Loading the body tracker… (first time takes a few seconds)');
     try{ const m=await import(MP+'/vision_bundle.mjs'); const fs=await m.FilesetResolver.forVisionTasks(MP+'/wasm');
-      const mk=d=>m.PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:POSE_MODEL,delegate:d},runningMode:'VIDEO',numPoses:2,minPoseDetectionConfidence:.5,minPosePresenceConfidence:.5,minTrackingConfidence:.5});
+      const mk=d=>m.PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:POSE_MODEL,delegate:d},runningMode:'VIDEO',numPoses:CAM.players,minPoseDetectionConfidence:.5,minPosePresenceConfidence:.5,minTrackingConfidence:.5});
       try{ CAM.lm=await mk('GPU'); }catch(e){ CAM.lm=await mk('CPU'); } }
     catch(e){ camStatus("Couldn't load the body tracker. Check your internet and try again.",true); camStop(); return false; }
-    CAM.on=true; CAM.eng=[newEngine(),newEngine()]; document.body.classList.add('cam');
-    camStatus(CAM.players===2?'Both players: stand side by side, arms down, and hold still…':'Stand back so your head to knees are in view, arms down, and hold still…');
-    requestAnimationFrame(camLoop); return true;
+    CAM.on=true; CAM.eng=[newEngine(),newEngine()]; document.body.classList.add('cam'); CAM.fpsT=performance.now(); CAM.frames=0;
+    camStatus(calibMsg()); scheduleFrame(); return true;
   } finally { $('#camStart').disabled=false; paintCamButtons(); }
 }
 function camStop(){ CAM.on=false; try{ CAM.stream&&CAM.stream.getTracks().forEach(t=>t.stop()); }catch(e){} CAM.stream=null; CAM.video=null; document.body.classList.remove('cam'); for(const k of ['l','r','d','b']){ if(IN.h[k]) press(k,false); CAM2.h[k]=0; } paintCamButtons(); camStatus('Camera off.'); }
-function recalibrate(){ CAM.eng=[newEngine(),newEngine()]; camStatus('Hold still for a second…'); }
+function recalibrate(){ CAM.eng=[newEngine(),newEngine()]; camStatus(calibMsg()); }
 function setHeld(i,k,v){ v=v?1:0; if(i===0){ if(IN.h[k]!==v) press(k,!!v); } else CAM2.h[k]=v; }
 function tapKey(i,k){ if(i===0){ press(k,true); press(k,false); } else CAM2.c[k]++; }
-function flashE(E,t,txt){ E.label=txt; E.labelT=t; }
+function flashE(E,t,txt){ E.label=txt; E.labelT=t; if(PRAC.on && E===CAM.eng[0]){ PRAC.done.add(txt); PRAC.hitT[txt]=t; } }
 const centerX=p=>{ const hv=p[23].visibility>.5&&p[24].visibility>.5; return hv?(p[23].x+p[24].x)/2:(p[11].x+p[12].x)/2; };
-function camLoop(){
-  if(!CAM.on) return; requestAnimationFrame(camLoop);
-  const v=CAM.video; if(!v||v.readyState<2) return; if(v.currentTime===CAM.last){ return; } CAM.last=v.currentTime;
+// handle every camera frame the moment it arrives (not on the next screen refresh)
+function scheduleFrame(){ if(!CAM.on||!CAM.video) return; const v=CAM.video; if(v.requestVideoFrameCallback) v.requestVideoFrameCallback(onFrame); else requestAnimationFrame(()=>onFrame(performance.now(),null)); }
+function onFrame(now,meta){
+  if(!CAM.on) return; scheduleFrame();
+  const v=CAM.video; if(!v||v.readyState<2) return; if(!meta&&v.currentTime===CAM.last) return; CAM.last=v.currentTime;
   const t=performance.now(); let res; try{ res=CAM.lm.detectForVideo(v,t); }catch(e){ return; }
-  camProcess(res.landmarks||[],t); drawCam(res.landmarks||[]);
+  camProcess(res.landmarks||[],t);
+  const done=performance.now(); const cap=meta&&(meta.captureTime||meta.presentationTime); if(cap){ CAM.latAcc+=Math.max(0,done-cap); CAM.latN++; }
+  CAM.frames++; if(done-CAM.fpsT>1000){ CAM.fps=Math.round(CAM.frames*1000/(done-CAM.fpsT)); CAM.lat=CAM.latN?Math.round(CAM.latAcc/CAM.latN):Math.round(done-t); CAM.frames=0; CAM.fpsT=done; CAM.latAcc=0; CAM.latN=0; paintSpeed(); }
+  drawCam(res.landmarks||[]);
 }
+function paintSpeed(){ const el=$('#pracSpeed'); if(!el) return; const slow=CAM.fps&&CAM.fps<20; el.innerHTML=`Tracking <b>${CAM.fps} fps</b> · camera → move <b>${CAM.lat} ms</b>${slow?' · <span style="color:var(--red)">slow: add light, close other tabs, or plug in the laptop</span>':''}`; }
+async function setPlayers(n){ CAM.players=n; recalibrate(); try{ CAM.lm&&await CAM.lm.setOptions({numPoses:n}); }catch(e){} paintCamButtons(); }
 function camProcess(all,t){
   let poses=all.filter(p=>p[11].visibility>.5&&p[12].visibility>.5);
   if(CAM.players===1){ poses=poses.length?[poses.slice().sort((a,b)=>Math.hypot(b[11].x-b[12].x,b[11].y-b[12].y)-Math.hypot(a[11].x-a[12].x,a[11].y-a[12].y))[0]]:[]; feed(CAM.eng[0],poses[0]||null,t,0); return; }
-  // two players: the person on the left of the (mirrored) picture is player 1
   poses.sort((a,b)=>centerX(b)-centerX(a));
   let as=[poses[0]||null,poses[1]||null];
   if(poses.length===1){ const x=centerX(poses[0]); const d=E=>E.cx==null?9:Math.abs(E.cx-x); as=d(CAM.eng[0])<=d(CAM.eng[1])?[poses[0],null]:[null,poses[0]]; }
@@ -1120,88 +1148,116 @@ function camProcess(all,t){
 const SENSE=[1.35,1,.72];   // low / normal / high: multiplies every threshold
 let camSens=1; try{ camSens=+(localStorage.getItem('fight-camsens')??1); if(!(camSens>=0&&camSens<=2)) camSens=1; }catch(e){}
 function feed(E,p,t,i){
-  if(!p){ for(const k of ['l','r','d','b']) setHeld(i,k,0); E.prev=null; return; }
-  const V=k=>p[k].visibility;
-  const ls=p[11], rs=p[12], nose=p[0], le=p[13], re=p[14], lw=p[15], rw=p[16], lh=p[23], rh=p[24], lk=p[25], rk=p[26], la=p[27], ra=p[28];
+  if(!p){ for(const k of ['l','r','d','b']) setHeld(i,k,0); E.prev=null; E.hist=[[],[]]; return; }
+  const V=k=>p[k].visibility, seated=CAM.seated;
+  const ls=p[11], rs=p[12], nose=p[0], le=p[13], re=p[14], lw=p[15], rw=p[16], lh=p[23], rh=p[24], lk=p[25], rk=p[26];
   const u=Math.max(.03,Math.hypot(ls.x-rs.x,ls.y-rs.y)); const S={x:(ls.x+rs.x)/2,y:(ls.y+rs.y)/2};
-  const hipsOK=V(23)>.45&&V(24)>.45; const hipY=hipsOK?(lh.y+rh.y)/2:S.y+1.6*u; const hipX=hipsOK?(lh.x+rh.x)/2:S.x; const cx=hipsOK?hipX:S.x; E.cx=cx;
-  const kneesOK=V(25)>.35&&V(26)>.35;
-  // calibration: a second of standing roughly still (or two seconds of anything)
+  const hipsOK=V(23)>.45&&V(24)>.45; const hipX=hipsOK?(lh.x+rh.x)/2:S.x;
+  const cx=seated?(S.x+nose.x)/2:(hipsOK?hipX:S.x); E.cx=cx;
+  const kneesOK=!seated&&V(25)>.35&&V(26)>.35;
   if(!E.base){
-    E.calib.push({sy:S.y,cx,u,ky:kneesOK?(lk.y+rk.y)/2:null}); if(E.calib.length>90) E.calib.shift();
-    const a=E.calib.slice(-18);
-    if(a.length>=18){ const sy=a.map(q=>q.sy), xs=a.map(q=>q.cx); const spread=(Math.max(...sy)-Math.min(...sy))+(Math.max(...xs)-Math.min(...xs));
-      if(spread<u*.6 || E.calib.length>=60){ const ks=a.map(q=>q.ky).filter(v=>v!=null); E.base={sy:avgA(sy),cx:avgA(xs),u:avgA(a.map(q=>q.u)),ky:ks.length>8?avgA(ks):null}; flashE(E,t,'READY!'); play('select',.6);
-        const ready=CAM.eng.slice(0,CAM.players).every(e=>e.base); camStatus(ready?(E.base.ky==null?'Ready! We can’t see your knees, so kick by swinging an arm low and sideways.':'Ready! Punch, kick, jump and block to fight.'):'Player '+(i+1)+' ready. Waiting for the other player…'); } }
+    E.calib.push({sy:S.y,ny:nose.y,cx,u,ky:kneesOK?(lk.y+rk.y)/2:null}); if(E.calib.length>90) E.calib.shift();
+    const a=E.calib.slice(-15);
+    if(a.length>=15){ const sy=a.map(q=>q.sy), xs=a.map(q=>q.cx); const spread=(Math.max(...sy)-Math.min(...sy))+(Math.max(...xs)-Math.min(...xs));
+      if(spread<u*.6 || E.calib.length>=50){ const ks=a.map(q=>q.ky).filter(v=>v!=null); E.base={sy:avgA(sy),ny:avgA(a.map(q=>q.ny)),cx:avgA(xs),u:avgA(a.map(q=>q.u)),ky:ks.length>8?avgA(ks):null}; flashE(E,t,'READY!'); play('select',.6);
+        const ready=CAM.eng.slice(0,CAM.players).every(e=>e.base); camStatus(ready?'Ready! Try every move.':'Player '+(i+1)+' ready. Waiting for the other player…'); } }
     E.prev=null; return; }
   const B=E.base, U=B.u, K=SENSE[camSens], dt=Math.max(.016,Math.min(.2,(t-E.prevT)/1000));
-  if(B.ky==null && kneesOK && (E.kneeSeen=(E.kneeSeen||0)+1)>20) B.ky=(lk.y+rk.y)/2;   // legs came into view later
-  // where you stand: step left/right (picture is mirrored: stepping to your right lowers x)
-  const dx=cx-B.cx, dy=S.y-B.sy;
-  if(Math.abs(dx)<.25*U) B.cx+=(cx-B.cx)*Math.min(1,dt*.5);           // follow slow drift, not deliberate steps
-  if(Math.abs(dy)<.15*U) B.sy+=(S.y-B.sy)*Math.min(1,dt*.5);
-  const goR=dx<-.42*U*K, goL=dx>.42*U*K; setHeld(i,'r',goR); setHeld(i,'l',goL); if(goR) flashE(E,t,'→'); else if(goL) flashE(E,t,'←');
-  // duck + jump
-  const duck=dy>.5*U*K; setHeld(i,'d',duck); if(duck) flashE(E,t,'DUCK');
-  if(E.prev){ const vy=(S.y-E.prev.sy)/dt/U; if(dy<-.17*U*K && vy<-1.1/K && t>E.cd.u){ tapKey(i,'u'); E.cd.u=t+650; flashE(E,t,'JUMP!'); } }
+  if(!seated&&B.ky==null && kneesOK && (E.kneeSeen=(E.kneeSeen||0)+1)>20) B.ky=(lk.y+rk.y)/2;
+  // move: lean (sitting) or step (standing). The picture is mirrored, so moving to your right lowers x.
+  const dx=cx-B.cx, dy=S.y-B.sy, hd=nose.y-B.ny;
+  const mv=(seated?.3:.42)*U*K;
+  if(Math.abs(dx)<mv*.5) B.cx+=(cx-B.cx)*Math.min(1,dt*.5);
+  if(Math.abs(dy)<.12*U&&Math.abs(hd)<.12*U){ B.sy+=(S.y-B.sy)*Math.min(1,dt*.5); B.ny+=(nose.y-B.ny)*Math.min(1,dt*.5); }
+  const goR=dx<-mv, goL=dx>mv; setHeld(i,'r',goR); setHeld(i,'l',goL); if(goR) flashE(E,t,'→'); else if(goL) flashE(E,t,'←');
+  // duck: head down (sitting) or squat (standing)
+  const duck=seated?(hd>.32*U*K||dy>.3*U*K):(dy>.5*U*K); setHeld(i,'d',duck); if(duck) flashE(E,t,'DUCK');
   // super: both hands above the head, held a moment
-  const overHead=lw.y<nose.y-.45*U && rw.y<nose.y-.45*U;
-  if(overHead){ if(!E.ohT) E.ohT=t; if(t-E.ohT>300 && t>E.cd.x){ tapKey(i,'x'); E.cd.x=t+1500; flashE(E,t,'SUPER!'); } } else E.ohT=0;
-  // block: both fists together in front of the face (a normal boxing guard is NOT a block, so you can still move)
-  const block=!overHead && lw.y<S.y+.25*U && rw.y<S.y+.25*U && Math.abs(lw.x-rw.x)<.55*U && Math.abs((lw.x+rw.x)/2-nose.x)<.9*U;
-  // hands: judge each punch over the last ~70 ms, not one frame, so camera jitter doesn't count
+  const overHead=lw.y<nose.y-.4*U && rw.y<nose.y-.4*U; if(overHead) E.lastOH=t;
+  if(overHead){ if(!E.ohT) E.ohT=t; if(t-E.ohT>280 && t>E.cd.x){ tapKey(i,'x'); E.cd.x=t+1500; flashE(E,t,'SUPER!'); } } else E.ohT=0;
+  // jump: shoot one hand straight up (works sitting), or hop (standing)
+  if(!overHead && t>E.cd.u){ const up=[lw,rw].findIndex((w,j)=>w.y<nose.y-.35*U && V(15+j)>.4 && [rw,lw][j].y>S.y-.05*U); if(up>=0){ tapKey(i,'u'); E.cd.u=t+650; flashE(E,t,'JUMP!'); } }
+  if(!seated && E.prev && t>E.cd.u){ const vy=(S.y-E.prev.sy)/dt/U; if(dy<-.17*U*K && vy<-1.1/K){ tapKey(i,'u'); E.cd.u=t+650; flashE(E,t,'JUMP!'); } }
+  // block: both fists together in front of the face (a normal guard is not a block, so you can still move)
+  const block=!overHead && lw.y<S.y+.25*U && rw.y<S.y+.25*U && Math.abs(lw.x-rw.x)<.38*U && Math.abs((lw.x+rw.x)/2-nose.x)<.9*U;
+  // hands: each punch is judged over the last ~100 ms (enough to ignore jitter, short enough to feel instant)
   const reach=[Math.hypot(lw.x-ls.x,lw.y-ls.y,(lw.z-ls.z)*.5)/U,Math.hypot(rw.x-rs.x,rw.y-rs.y,(rw.z-rs.z)*.5)/U];
   const dz=[(lw.z-ls.z)/U,(rw.z-rs.z)/U];
-  E.hist=E.hist||[[],[]];
-  let punching=false, kicked=false; const hits=[];
+  let punching=false; const hits=[]; let chop=-1;
   [[0,lw,ls,le],[1,rw,rs,re]].forEach(([j,w,s,el])=>{
-    const H=E.hist[j]; H.push({x:w.x,y:w.y,dz:dz[j],r:reach[j],t}); while(H.length>6||(H.length>2&&t-H[0].t>140)) H.shift();
-    if(V(15+j)<.3||H.length<3) return;
-    const o=H[0], span=Math.max(.033,(t-o.t)/1000)/.066;            // normalise to a 66 ms window
+    const H=E.hist[j]; H.push({x:w.x,y:w.y,dz:dz[j],r:reach[j],t}); while(H.length>5||(H.length>2&&t-H[0].t>100)) H.shift();
+    if(V(15+j)<.3||H.length<2) return;
+    const o=H[0], span=Math.max(.025,(t-o.t)/1000)/.066;
     const D2=Math.hypot(w.x-o.x,w.y-o.y)/U/span, Dz=-(dz[j]-o.dz)/span, dR=(reach[j]-o.r)/span, vx=(w.x-o.x)/U/span, vy=(w.y-o.y)/U/span;
     const ext=Math.hypot(w.x-s.x,w.y-s.y)/Math.max(1e-4,Math.hypot(el.x-s.x,el.y-s.y)+Math.hypot(w.x-el.x,w.y-el.y));
-    const downward=vy>0 && vy>1.4*Math.abs(vx);
+    const downward=vy>0 && vy>1.4*Math.abs(vx) && Dz<.5, upward=vy<0 && -vy>1.4*Math.abs(vx) && Dz<.5;
     const high=w.y>nose.y-.75*U && w.y<S.y+.85*U;
-    const sideP=D2>.5*K && ext>.72 && dR>.22*K;                     // punch across the picture
-    const fwdP=Dz>.6*K && dR>.2*K && dz[j]<-.15;                      // punch straight at the camera
-    const fastP=D2+Math.max(0,Dz)>1.1*K && dR>.25*K && !downward;
-    if(high && !overHead && (sideP||fwdP||fastP)){ punching=true; if(t>E.cd['p'+j]) hits.push(j); }
-    // no legs in view: a fast low sideways arm swing counts as a kick
-    const q=H[H.length-2], sq=Math.max(.02,(t-q.t)/1000)/.066, svx=(w.x-q.x)/U/sq, svy=(w.y-q.y)/U/sq;
-    if(B.ky==null && !kicked && w.y>S.y+.85*U && Math.abs(svx)>.9*K && Math.abs(svx)>1.8*Math.abs(svy) && t>E.cd.k){ kicked=true; tapKey(i,'k'); E.cd.k=t+450; flashE(E,t,'KICK!'); }
+    const sideP=D2>.45*K && ext>.7 && dR>.2*K;                       // punch across the picture
+    const fwdP=Dz>.55*K && dR>.18*K && dz[j]<-.12;                     // punch straight at the camera
+    const fastP=D2+Math.max(0,Dz)>1.0*K && dR>.22*K;
+    if(high && !overHead && !downward && !upward && (sideP||fwdP||fastP)){ punching=true; if(t>E.cd['p'+j]) hits.push(j); }
+    // kick: chop one hand down fast (not right after the Super pose)
+    if(downward && vy>.72*K && w.y>S.y-.3*U && w.y<S.y+1.4*U && t-E.lastOH>700 && t>E.cd.k) chop=j;
   });
-  for(const j of hits){ E.cd['p'+j]=t+240; E.punchT[j]=t; }
-  if(hits.length){ const both=hits.length===2||t-E.punchT[1-hits[0]]<220;
-    if(both && t>E.cd.s){ tapKey(i,'s'); E.cd.s=t+900; E.cd.p0=E.cd.p1=t+300; flashE(E,t,'THROW!'); }
+  for(const j of hits){ E.cd['p'+j]=t+220; E.punchT[j]=t; }
+  if(hits.length){ const both=hits.length===2||t-E.punchT[1-hits[0]]<200;
+    if(both && t>E.cd.s){ tapKey(i,'s'); E.cd.s=t+900; E.cd.p0=E.cd.p1=t+280; flashE(E,t,'THROW!'); }
     else { tapKey(i,'p'); flashE(E,t,'PUNCH!'); } }
   setHeld(i,'b',block&&!punching); if(block&&!punching&&!(E.label==='BLOCK'&&t-E.labelT<400)) flashE(E,t,'BLOCK');
-  // kick: a knee lifted, or a foot swung out to the side
-  if(!kicked && B.ky!=null && kneesOK && t>E.cd.k){ const lift=B.ky-Math.min(lk.y,rk.y); const side=(V(27)>.35&&Math.abs(la.x-hipX)>1.35*U)||(V(28)>.35&&Math.abs(ra.x-hipX)>1.35*U);
-    if(lift>.38*U*K || side){ tapKey(i,'k'); E.cd.k=t+450; flashE(E,t,'KICK!'); } }
-  E.prev={sy:S.y,r:reach,r2:E.prev?E.prev.r:null,dz,w:[{x:lw.x,y:lw.y,z:lw.z},{x:rw.x,y:rw.y,z:rw.z}]}; E.prevT=t; E.lmk=p;
+  let kicked=false;
+  if(chop>=0 && !punching){ kicked=true; tapKey(i,'k'); E.cd.k=t+420; flashE(E,t,'KICK!'); }
+  if(!kicked && !seated && B.ky!=null && kneesOK && t>E.cd.k){ const lift=B.ky-Math.min(lk.y,rk.y); if(lift>.38*U*K){ tapKey(i,'k'); E.cd.k=t+420; flashE(E,t,'KICK!'); } }
+  E.prev={sy:S.y}; E.prevT=t; E.lmk=p;
 }
-const BONES=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+const BONES=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[0,11],[0,12]];
 function drawCam(all){
-  const targets=[$('#camMini')]; if(!$('#camOv').hidden) targets.push($('#camBig'));
+  const targets=[]; if(document.body.classList.contains('cam')&&!PRAC.on) targets.push($('#camMini')); if(!$('#camOv').hidden) targets.push($('#camBig')); if(PRAC.on) targets.push($('#pracCam'));
   for(const c of targets){ if(!c) continue; const g=c.getContext('2d'); const w=c.width, h=c.height; g.save(); g.clearRect(0,0,w,h);
-    g.translate(w,0); g.scale(-1,1); if(CAM.video) g.drawImage(CAM.video,0,0,w,h); g.fillStyle='rgba(10,8,5,.35)'; g.fillRect(0,0,w,h);
-    CAM.eng.slice(0,CAM.players).forEach((E,i)=>{ const p=E.lmk; if(!p&&!E.base) return; const col=i?'#3fb4ff':'#ff7a1a';
-      if(E.base){ g.strokeStyle='rgba(255,255,255,.25)'; g.setLineDash([4,4]); g.beginPath(); g.moveTo(E.base.cx*w,0); g.lineTo(E.base.cx*w,h); g.stroke(); g.setLineDash([]); }
-      const pp=E.lmk||null; if(pp){ g.strokeStyle=col; g.lineWidth=Math.max(2,w/120); g.lineCap='round'; g.beginPath(); for(const [a,b] of BONES){ if(pp[a].visibility<.4||pp[b].visibility<.4) continue; g.moveTo(pp[a].x*w,pp[a].y*h); g.lineTo(pp[b].x*w,pp[b].y*h); } g.stroke(); g.fillStyle='#fff'; g.beginPath(); g.arc(pp[0].x*w,pp[0].y*h,w/60,0,7); g.fill(); } });
+    g.translate(w,0); g.scale(-1,1); if(CAM.video) g.drawImage(CAM.video,0,0,w,h); g.fillStyle='rgba(10,8,5,.3)'; g.fillRect(0,0,w,h);
+    CAM.eng.slice(0,CAM.players).forEach((E,i)=>{ const col=i?'#3fb4ff':'#ff7a1a';
+      if(E.base){ const m=(CAM.seated?.3:.42)*E.base.u*SENSE[camSens]; g.strokeStyle='rgba(255,255,255,.22)'; g.setLineDash([5,5]); g.lineWidth=2; for(const x of [E.base.cx-m,E.base.cx+m]){ g.beginPath(); g.moveTo(x*w,0); g.lineTo(x*w,h); g.stroke(); } g.setLineDash([]); }
+      const pp=E.lmk; if(pp){ g.strokeStyle=col; g.lineWidth=Math.max(3,w/110); g.lineCap='round'; g.beginPath(); for(const [a,b] of BONES){ if(pp[a].visibility<.4||pp[b].visibility<.4) continue; g.moveTo(pp[a].x*w,pp[a].y*h); g.lineTo(pp[b].x*w,pp[b].y*h); } g.stroke();
+        g.fillStyle='#fff'; for(const k of [0,15,16]){ if(pp[k].visibility<.4) continue; g.beginPath(); g.arc(pp[k].x*w,pp[k].y*h,w/(k?55:45),0,7); g.fill(); } } });
     g.restore();
-    // labels (unmirrored text)
     CAM.eng.slice(0,CAM.players).forEach((E,i)=>{ const col=i?'#3fb4ff':'#ff7a1a'; const x=CAM.players===2?(i?w*.75:w*.25):w/2; g.textAlign='center'; g.font=`400 ${Math.round(h/7)}px Anton, Impact, sans-serif`;
-      let txt=E.base?(performance.now()-E.labelT<500?E.label:''):(E.lmk||E.calib.length?'HOLD STILL…':'STEP INTO VIEW'); if(!txt) return; g.lineWidth=4; g.strokeStyle='#000'; g.strokeText(txt,x,h*.2); g.fillStyle=E.base?col:'#fff'; g.fillText(txt,x,h*.2); });
-    if(CAM.players===2){ g.fillStyle='rgba(255,255,255,.5)'; g.font=`700 ${Math.round(h/16)}px Inter, sans-serif`; g.textAlign='left'; g.fillText('P1',6,h-8); g.textAlign='right'; g.fillText('P2',w-6,h-8); }
+      const txt=E.base?(performance.now()-E.labelT<450?E.label:''):(E.lmk||E.calib.length?'HOLD STILL…':'GET INTO VIEW'); if(!txt) return; g.lineWidth=5; g.strokeStyle='#000'; g.strokeText(txt,x,h*.2); g.fillStyle=E.base?col:'#fff'; g.fillText(txt,x,h*.2); });
+    if(CAM.players===2){ g.fillStyle='rgba(255,255,255,.55)'; g.font=`700 ${Math.round(h/16)}px Inter, sans-serif`; g.textAlign='left'; g.fillText('P1',6,h-8); g.textAlign='right'; g.fillText('P2',w-6,h-8); }
   }
+  if(PRAC.on) paintPracList();
 }
-function paintCamButtons(){ const on=CAM.on; $('#camStart').hidden=on; $('#camRecal').hidden=!on; $('#camOff').hidden=!on; $('#camGo').disabled=!on; $('#camOnline').disabled=!on||CAM.players===2; }
-function openCam(){ show('#camOv'); paintCamButtons(); document.querySelectorAll('#camSens button').forEach(b=>{ b.setAttribute('aria-pressed',String(+b.dataset.s===camSens)); b.onclick=()=>{ camSens=+b.dataset.s; try{ localStorage.setItem('fight-camsens',camSens); }catch(_){} document.querySelectorAll('#camSens button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); }; }); document.querySelectorAll('#camPlayers button').forEach(b=>{ b.setAttribute('aria-pressed',String(+b.dataset.n===CAM.players)); b.onclick=()=>{ CAM.players=+b.dataset.n; document.querySelectorAll('#camPlayers button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); recalibrate(); paintCamButtons(); }; }); if(!CAM.on) camStart(); }
+const MOVES_TXT={
+  seated:[['PUNCH!','Punch','Snap a fast punch at the screen'],['KICK!','Kick','Chop one hand down fast'],['JUMP!','Jump','Shoot one hand straight up'],['DUCK','Duck','Drop your head down'],['BLOCK','Block','Both fists together in front of your face'],['←','Move left','Lean left'],['→','Move right','Lean right'],['THROW!','Throw product','Punch with both hands together'],['SUPER!','Super','Both hands up over your head']],
+  standing:[['PUNCH!','Punch','Snap a fast punch at the screen'],['KICK!','Kick','Lift a knee, or chop one hand down'],['JUMP!','Jump','Hop up, or shoot one hand up'],['DUCK','Duck','Squat down'],['BLOCK','Block','Both fists together in front of your face'],['←','Move left','Step left'],['→','Move right','Step right'],['THROW!','Throw product','Punch with both hands together'],['SUPER!','Super','Both hands up over your head']]};
+const movesNow=()=>MOVES_TXT[CAM.seated?'seated':'standing'];
+function paintMoves(){ $('#camMoves').innerHTML=movesNow().map(([,a,b])=>`<div><b>${esc(a)}</b>${esc(b)}</div>`).join(''); }
+let pracKey='';
+function paintPracList(){ const now=performance.now(); const key=movesNow().map(([k])=>(PRAC.done.has(k)?1:0)+(now-(PRAC.hitT[k]||0)<400?'h':'')).join(''); if(key===pracKey) return; pracKey=key;
+  $('#pracList').innerHTML=movesNow().map(([k,a,b])=>`<div class="${PRAC.done.has(k)?'ok':''} ${now-(PRAC.hitT[k]||0)<400?'hit':''}"><i>${PRAC.done.has(k)?'✓':'○'}</i><span><b>${esc(a)}</b>${esc(b)}</span></div>`).join('');
+  const n=movesNow().filter(([k])=>PRAC.done.has(k)).length; $('#pracCount').textContent=`${n} / ${movesNow().length} moves working`; }
+function paintCamButtons(){ const on=CAM.on; $('#camStart').hidden=on; $('#camRecal').hidden=!on; $('#camOff').hidden=!on; $('#camGo').disabled=!on; $('#camPractice').disabled=!on; $('#camOnline').disabled=!on||CAM.players===2; }
+function segInit(sel,attr,val,fn){ document.querySelectorAll(sel+' button').forEach(b=>{ b.setAttribute('aria-pressed',String(b.dataset[attr]===String(val))); b.onclick=()=>{ document.querySelectorAll(sel+' button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); fn(b.dataset[attr]); }; }); }
+function setSeated(v){ CAM.seated=v; try{ localStorage.setItem('fight-camseat',v?'1':'0'); }catch(e){} paintMoves(); recalibrate(); pracKey=''; segInit('#camPose','p',v?'sit':'stand',x=>setSeated(x==='sit')); segInit('#pracPose','p',v?'sit':'stand',x=>setSeated(x==='sit')); }
+function setSens(v){ camSens=+v; try{ localStorage.setItem('fight-camsens',camSens); }catch(e){} segInit('#camSens','s',camSens,setSens); segInit('#pracSens','s',camSens,setSens); }
+function openCam(){ show('#camOv'); paintCamButtons(); paintMoves(); setSens(camSens); segInit('#camPose','p',CAM.seated?'sit':'stand',x=>setSeated(x==='sit')); segInit('#camPlayers','n',CAM.players,n=>setPlayers(+n)); if(!CAM.on) camStart(); }
+// practice room: camera on one side, your fighter and a training dummy on the other
+async function startPractice(){
+  const me=byId(PICK||'kavya'); const dummy=ROSTER.find(r=>r.id==='bodybuilder'&&r.id!==me.id)||ROSTER.find(r=>r.id!==me.id);
+  await prepFighter(me); await prepFighter(dummy);
+  G.attract=false; PRAC.on=true; PRAC.done=new Set(); PRAC.hitT={}; pracKey='';
+  G.mode='practice'; newMatch(me.id,dummy.id,2); G.f[0].name=me.name||'You'; G.f[1].name='Training dummy'; G.phase='fight'; G.phaseT=0; G.f[0].x=330; G.f[1].x=560; G.f[0].meter=100;
+  document.body.classList.add('practice'); $('#prac').hidden=false; show(null); setSeated(CAM.seated); setSens(camSens); resize(); paused=false; acc=0; paintSpeed(); paintPracList(); camStatus(CAM.eng[0]&&CAM.eng[0].base?'Ready! Try every move.':calibMsg());
+}
+function practiceTick(){ G.timer=3600; G.wins=[0,0]; for(const F of G.f){ if(F.hp<45) F.hp=100; } const me=G.f[0]; me.meter=Math.min(100,me.meter+.6); if(G.phase!=='fight'){ G.phase='fight'; G.phaseT=0; } }
+function endPractice(){ PRAC.on=false; document.body.classList.remove('practice'); $('#prac').hidden=true; G.phase='title'; resize(); }
 $('#camBtn').onclick=()=>{ audioInit(); openCam(); };
 $('#camStart').onclick=()=>camStart();
 $('#camRecal').onclick=()=>recalibrate();
+$('#pracRecal').onclick=()=>recalibrate();
 $('#camOff').onclick=()=>camStop();
 $('#camBack').onclick=()=>show('#titleOv');
+$('#camPractice').onclick=()=>startPractice();
+$('#pracBack').onclick=()=>{ endPractice(); openCam(); };
+$('#pracGo').onclick=()=>{ endPractice(); if(CAM.players===2){ DUO.step=1; openSelect('local2'); } else openSelect('cpu'); };
 $('#camGo').onclick=()=>{ if(CAM.players===2){ DUO.step=1; openSelect('local2'); } else openSelect('cpu'); };
 $('#camOnline').onclick=()=>openSelect('online');
 $('#camMini').addEventListener('click',()=>{ recalibrate(); });
@@ -1224,7 +1280,7 @@ requestAnimationFrame(loop);
 
 if(urlRoom){ $('#titleOv').querySelector('.lede').textContent='Your friend invited you to a fight (room '+urlRoom+'). Pick your fighter and you\'re in.'; $('#cpuBtn').hidden=true; $('#onlineBtn').textContent='👊 Join the fight'; }
 
-if(DEBUG) window.__G={CAM,CAM2,camProcess,feed,newEngine,drawCam,DUO,startLocal2,G,MOVES,step,newMatch,prepFighter,ROSTER,HEAD,IN,press,render,pose,hurtbox,hitbox,loop,NET};
+if(DEBUG) window.__G={PRAC,startPractice,endPractice,setSeated,CAM,CAM2,camProcess,feed,newEngine,drawCam,DUO,startLocal2,G,MOVES,step,newMatch,prepFighter,ROSTER,HEAD,IN,press,render,pose,hurtbox,hitbox,loop,NET};
 })();
 </script>
 </body>
