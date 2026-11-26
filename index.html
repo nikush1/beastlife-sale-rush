@@ -101,25 +101,11 @@ h2{font-family:var(--f-display);font-weight:400;text-transform:uppercase;font-si
 .game.feature .cover{flex:1.35;aspect-ratio:auto;min-height:340px}
 .game.feature .body{flex:1;padding:22px 24px}
 .game.feature .cover::after{inset:0 0 0 auto;width:30%;height:auto;background:linear-gradient(90deg,rgba(27,20,13,0),rgba(27,20,13,.9))}
-.game.feature.slim .cover{flex:1;min-height:240px}
-.game.feature.slim .body{flex:1.1}
 .maps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .maps div{position:relative;border-radius:8px;overflow:hidden;aspect-ratio:16/10;border:1px solid var(--line)}
 .maps img{width:100%;height:100%;object-fit:cover;display:block}
 .maps b{position:absolute;left:6px;bottom:5px;font:700 10px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;background:rgba(0,0,0,.65);padding:2px 5px;border-radius:4px}
 @media (max-width:900px){ .game.feature{flex-direction:column} .game.feature .cover{min-height:0;aspect-ratio:16/9} .game.feature .cover::after{inset:auto 0 0 0;width:auto;height:45%;background:linear-gradient(180deg,rgba(27,20,13,0),rgba(27,20,13,.85))} }
-/* Edit Bay has no 3D scene, so its cover is drawn as an edit timeline */
-.nle{position:absolute;inset:0;background:#0c0e0b;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:8% 7%}
-.nle .t{font-family:var(--f-display);font-size:clamp(34px,5vw,56px);line-height:.9;text-transform:uppercase}
-.nle .t em{font-style:normal;color:var(--lime)}
-.nle .tc{font:700 13px var(--f-mono);color:#ff5b4f;display:flex;align-items:center;gap:8px}
-.nle .tc i{width:9px;height:9px;border-radius:50%;background:#ff5b4f}
-.track{position:relative;height:22px;border-radius:4px;background:#151913;display:flex;gap:3px;padding:3px}
-.track b{display:block;border-radius:3px}
-.track.v b{background:#3c6e8f}.track.v b:nth-child(2n){background:#5a8fb0}
-.track.a b{background:#5f7a12}.track.a b:nth-child(2n){background:#7da11a}
-.track.c b{background:#a5552a}
-.playhead{position:absolute;top:-6px;bottom:-6px;left:58%;width:2px;background:var(--lime);box-shadow:0 0 8px var(--lime)}
 
 /* how */
 section.how{padding:clamp(28px,5vw,56px) 0;border-top:1px solid var(--line)}
