@@ -26,6 +26,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--lime);outline-o
 #app{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none}
 #wrap{position:relative;width:100%;max-width:calc(100vh*16/9);aspect-ratio:16/9;max-height:100%;background:#000}
 canvas{display:block;width:100%;height:100%;touch-action:none}
+#camMini{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:24%;max-width:280px;aspect-ratio:4/3;border-radius:8px;border:2px solid rgba(255,255,255,.35);display:none;cursor:pointer;z-index:5;background:#000}
+body.cam #camMini{display:block}
 .topbtns{position:absolute;top:14%;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:6}
 .iconbtn{background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font:700 12px var(--f-mono);min-height:30px;min-width:34px;opacity:.85}
 
@@ -103,6 +105,7 @@ input[type=text]{min-height:48px;border-radius:8px;border:1px solid var(--line);
 <div id="app">
   <div id="wrap">
     <canvas id="cv" aria-label="Fight arena"></canvas>
+    <canvas id="camMini" width="320" height="240" title="Tap to recalibrate"></canvas>
     <div class="topbtns"><button class="iconbtn" id="muteBtn" aria-label="Sound on or off">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="Menu">☰</button></div>
   </div>
   <p id="hint">↻ Turn your phone sideways for a bigger fight</p>
@@ -129,6 +132,7 @@ input[type=text]{min-height:48px;border-radius:8px;border:1px solid var(--line);
       <button class="btn" id="cpuBtn">🥊 Fight the CPU</button>
       <button class="btn orange" id="onlineBtn">👥 Fight a friend online</button>
     </div>
+    <div class="btnrow"><button class="btn" id="camBtn" style="background:#3fb4ff;color:#06131f">📷 Fight with your body (webcam)</button></div>
     <div class="ctl">
       <div><b>Move · jump · crouch</b>Stick, or <kbd>A</kbd><kbd>D</kbd> <kbd>W</kbd> <kbd>S</kbd> / arrow keys</div>
       <div><b>Punch</b>Tap 3 times for a combo. <kbd>J</kbd></div>
@@ -205,6 +209,33 @@ input[type=text]{min-height:48px;border-radius:8px;border:1px solid var(--line);
     <p class="status" id="mkStatus"></p>
     <div class="btnrow"><button class="btn ghost" id="mkBack">← Back</button><button class="btn" id="mkUse" disabled>Use this fighter</button></div>
     <p class="fine">Your photo stays on this phone. In an online fight, only your face picture is sent to the friend in your room.</p>
+  </div>
+</div>
+
+<!-- webcam motion control -->
+<div class="overlay" id="camOv" hidden>
+  <div class="panel">
+    <span class="eyebrow">Motion control · webcam</span>
+    <h2>Fight with your body</h2>
+    <p class="lede">Your camera watches you and your fighter copies you. Put the laptop on a table, step back 2–3 steps so your head to knees are in the picture, and keep the room well lit. Tracking runs on this computer: nothing is recorded or sent.</p>
+    <div class="row" style="align-items:flex-start">
+      <canvas id="camBig" width="480" height="360" style="width:min(100%,420px);aspect-ratio:4/3;border-radius:12px;background:#000;border:1px solid var(--line)"></canvas>
+      <div class="ctl" style="flex:1;min-width:240px;grid-template-columns:repeat(2,minmax(0,1fr))">
+        <div><b>Punch</b>Throw a fast punch, either hand</div>
+        <div><b>Kick</b>Lift a knee up high</div>
+        <div><b>Jump</b>Jump</div>
+        <div><b>Duck</b>Squat down</div>
+        <div><b>Block</b>Both fists up in front of your face</div>
+        <div><b>Move</b>Step left or right</div>
+        <div><b>Throw product</b>Punch with both hands together</div>
+        <div><b>Super</b>Both hands up over your head</div>
+      </div>
+    </div>
+    <p class="status" id="camStatus"></p>
+    <div class="seg" id="camPlayers"><button data-n="1">1 player</button><button data-n="2">2 players, one camera</button></div>
+    <div class="btnrow"><button class="btn ghost" id="camStart">Start camera</button><button class="btn ghost" id="camRecal" hidden>Recalibrate</button><button class="btn ghost" id="camOff" hidden>Camera off</button></div>
+    <div class="btnrow"><button class="btn ghost" id="camBack">← Back</button><button class="btn" id="camGo" disabled>Pick fighters →</button><button class="btn orange" id="camOnline" disabled>Fight a friend online</button></div>
+    <p class="fine">Tip: tap the small camera picture during a fight to recalibrate. Keyboard and touch controls still work alongside the camera.</p>
   </div>
 </div>
 
@@ -811,7 +842,7 @@ function loop(t){
     acc+=dt; let n=0;
     while(acc>=1/60 && n<5){ acc-=1/60; n++;
       const myIn=readInput(IN,lastCnt[0]);
-      const i1 = G.mode==='cpu' ? cpuInput(G.f[1],G.f[0],G.diff) : G.mode==='host' ? readInput(netIn||{h:{},c:{}},lastCnt[1]) : {h:{},p:{}};
+      const i1 = G.mode==='cpu' ? cpuInput(G.f[1],G.f[0],G.diff) : G.mode==='local2' ? readInput(CAM2,lastCnt[1]) : G.mode==='host' ? readInput(netIn||{h:{},c:{}},lastCnt[1]) : {h:{},p:{}};
       step([myIn,i1]);
       handleEvents();
     }
@@ -824,7 +855,7 @@ function loop(t){
 function updateTouchUI(){ const me=G.f[G.mode==='guest'?1:0]; if(!me) return; const ready=me.meter>=100; const sp=$('#superPad'); if(sp.classList.contains('ready')!==ready) sp.classList.toggle('ready',ready); }
 
 /* ================= screens ================= */
-const OVS=['#titleOv','#selectOv','#ladderOv','#onlineOv','#makeOv','#resultOv','#pauseOv'];
+const OVS=['#titleOv','#selectOv','#ladderOv','#onlineOv','#makeOv','#resultOv','#pauseOv','#camOv'];
 function show(id){ OVS.forEach(o=>$(o).hidden=o!==id); }
 let PICK=null, diff=1, LADDER=null, selectFor='cpu';
 try{ PICK=localStorage.getItem('fight-pick'); diff=+(localStorage.getItem('fight-diff')??1); }catch(e){}
@@ -833,8 +864,8 @@ const unlocked=()=>{ try{ return localStorage.getItem('fight-unlocked')==='1'; }
 function headThumb(entry){ const c=document.createElement('canvas'); c.width=168; c.height=184; const h=HEAD[entry.id]; if(h){ const g=c.getContext('2d'); const s=Math.min(168/h.c.width,184/h.c.height); g.drawImage(h.c,(168-h.c.width*s)/2,184-h.c.height*s,h.c.width*s,h.c.height*s); } return c; }
 async function openSelect(kind){
   selectFor=kind; show('#selectOv');
-  $('#selEyebrow').textContent=kind==='online'?'Online fight · choose your fighter':'Fight the CPU · choose your fighter';
-  $('#diffBox').hidden=kind!=='cpu'; $('#selGo').textContent=kind==='online'?'Next →':'Fight!';
+  $('#selEyebrow').textContent=kind==='online'?'Online fight · choose your fighter':kind==='local2'?(DUO.step===1?'Player 1 (left side) · choose your fighter':'Player 2 (right side) · choose your fighter'):'Fight the CPU · choose your fighter';
+  $('#diffBox').hidden=kind!=='cpu'; $('#selGo').textContent=kind==='online'||(kind==='local2'&&DUO.step===1)?'Next →':'Fight!';
   const grid=$('#grid'); grid.innerHTML='';
   const list=[]; if(OWN&&OWN.img) list.push(ownEntry()); list.push(...ROSTER);
   const add=document.createElement('button'); add.className='card add'; add.innerHTML=`<span class="plus">＋</span><span>${OWN&&OWN.img?'New face':'Make your own'}</span><small>selfie or photo</small>`; add.onclick=()=>openMaker(kind); grid.appendChild(add);
@@ -853,8 +884,8 @@ async function openSelect(kind){
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 $('#cpuBtn').onclick=()=>{ audioInit(); openSelect('cpu'); };
 $('#onlineBtn').onclick=()=>{ audioInit(); openSelect('online'); };
-$('#selBack').onclick=()=>{ show('#titleOv'); };
-$('#selGo').onclick=()=>{ if(!PICK) return; if(selectFor==='online') openOnline(); else startLadder(); };
+$('#selBack').onclick=()=>{ if(selectFor==='local2'&&DUO.step===2){ DUO.step=1; openSelect('local2'); return; } show(CAM.on?'#camOv':'#titleOv'); };
+$('#selGo').onclick=()=>{ if(!PICK) return; if(selectFor==='online') openOnline(); else if(selectFor==='local2'){ if(DUO.step===1){ DUO.p1=PICK; DUO.step=2; openSelect('local2'); } else { DUO.p2=PICK; PICK=DUO.p1; startLocal2(); } } else startLadder(); };
 
 function startLadder(){
   const pool=ROSTER.filter(r=>!r.boss && r.id!==PICK).sort(()=>Math.random()-.5).slice(0,4);
@@ -890,6 +921,9 @@ function matchOver(w){
         if(L.i+1>=L.opps.length){ $('#resEyebrow').textContent='Ladder cleared'; $('#resText').textContent='You beat every creator and the Founder Police. The founders are now unlocked as fighters.'; try{ localStorage.setItem('fight-unlocked','1'); }catch(e){} mk('Play again','',()=>openSelect('cpu')); mk('Menu','ghost',()=>show('#titleOv')); LADDER=null; }
         else { $('#resEyebrow').textContent=`Fight ${L.i+1} of ${L.opps.length} won`; $('#resText').textContent=`${opp.boss?'Founder Police':opp.name} is down. On to the next one.`; L.i++; mk('Next fight →','',showLadder); mk('Quit','ghost',()=>{ LADDER=null; show('#titleOv'); }); }
       } else { $('#resEyebrow').textContent=`Fight ${L.i+1} of ${L.opps.length}`; $('#resText').textContent=draw?'Nobody won. Go again.':`${opp.boss?'The Founder Police':opp.name} got you this time.`; mk('Try again','',()=>$('#ladGo').onclick()); mk('Quit','ghost',()=>{ LADDER=null; show('#titleOv'); }); }
+    } else if(G.mode==='local2'){
+      $('#resEyebrow').textContent='2 players · one camera'; big.className='result-big win'; big.textContent=draw?'Draw':(w===0?'P1 wins':'P2 wins'); $('#resText').textContent=draw?'Dead even.':`${G.f[w].name.replace(/^P\d · /,'')} takes it.`; play('best',.8);
+      mk('Rematch','',()=>startLocal2()); mk('Change fighters','ghost',()=>{ DUO.step=1; openSelect('local2'); }); mk('Menu','ghost',()=>show('#titleOv'));
     } else {
       $('#resEyebrow').textContent='Online fight'; const opp=G.f[1-meSide]; $('#resText').textContent=draw?'Dead even.':won?`You beat ${opp.name}.`:`${opp.name} wins this one.`;
       if(won) play('best',.8);
@@ -898,7 +932,7 @@ function matchOver(w){
     }
   },1200);
 }
-function togglePause(){ if(G.phase==='title'||G.phase==='over'||!$('#resultOv').hidden) return; if(G.mode!=='cpu'){ paused=false; show('#pauseOv'); return; } paused=!paused; show(paused?'#pauseOv':null); }
+function togglePause(){ if(G.phase==='title'||G.phase==='over'||!$('#resultOv').hidden) return; if(G.mode==='host'||G.mode==='guest'){ paused=false; show('#pauseOv'); return; } paused=!paused; show(paused?'#pauseOv':null); }
 $('#pauseBtn').onclick=()=>{ if(!document.querySelector('.overlay:not([hidden])')) togglePause(); };
 $('#resumeBtn').onclick=()=>{ paused=false; show(null); };
 $('#quitBtn').onclick=()=>{ paused=false; if(G.mode==='host'||G.mode==='guest') netLeave(); G.phase='title'; LADDER=null; show('#titleOv'); };
@@ -1032,6 +1066,122 @@ $('#mkUse').onclick=()=>{ if(!DRAFT.img) return; OWN={img:DRAFT.img,thumb:DRAFT.
   try{ localStorage.setItem('salerush-own',JSON.stringify(OWN)); }catch(e){}
   delete HEAD.me; PICK='me'; try{ localStorage.setItem('fight-pick','me'); }catch(e){} openSelect(makerFor); };
 
+/* ================= webcam motion control =================
+   MediaPipe Pose runs on this computer and watches 33 body points. Moves become the same button presses
+   the keyboard makes, so it works vs the CPU, online, and for two people in front of one camera. */
+const POSE_MODEL='https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+const CAM={on:false,video:null,stream:null,lm:null,players:1,eng:[],last:-1};
+const CAM2={h:{l:0,r:0,u:0,d:0,b:0},c:{p:0,k:0,s:0,x:0,u:0}};
+const avgA=a=>a.reduce((s,v)=>s+v,0)/a.length;
+function camStatus(t,err){ const s=$('#camStatus'); if(s){ s.textContent=t; s.classList.toggle('err',!!err); } }
+function newEngine(){ return {base:null,calib:[],prev:null,prevT:0,cd:{p0:0,p1:0,k:0,u:0,s:0,x:0},ohT:0,label:'',labelT:0,lmk:null,punchT:[0,0],cx:null}; }
+async function camStart(){
+  if(CAM.on) return true;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ camStatus('This browser has no camera access. Try Chrome on a laptop.',true); return false; }
+  camStatus('Asking for the camera…'); $('#camStart').disabled=true;
+  try{
+    try{ CAM.stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false}); }
+    catch(e){ camStatus(e&&e.name==='NotFoundError'?'No camera found on this device.':'Camera blocked. Click the camera icon in the address bar, allow it, then try again.',true); return false; }
+    const v=document.createElement('video'); v.playsInline=true; v.muted=true; v.srcObject=CAM.stream; await v.play(); CAM.video=v;
+    camStatus('Loading the body tracker… (first time takes a few seconds)');
+    try{ const m=await import(MP+'/vision_bundle.mjs'); const fs=await m.FilesetResolver.forVisionTasks(MP+'/wasm');
+      const mk=d=>m.PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:POSE_MODEL,delegate:d},runningMode:'VIDEO',numPoses:2,minPoseDetectionConfidence:.5,minPosePresenceConfidence:.5,minTrackingConfidence:.5});
+      try{ CAM.lm=await mk('GPU'); }catch(e){ CAM.lm=await mk('CPU'); } }
+    catch(e){ camStatus("Couldn't load the body tracker. Check your internet and try again.",true); camStop(); return false; }
+    CAM.on=true; CAM.eng=[newEngine(),newEngine()]; document.body.classList.add('cam');
+    camStatus(CAM.players===2?'Both players: stand side by side, arms down, and hold still…':'Stand back so your head to knees are in view, arms down, and hold still…');
+    requestAnimationFrame(camLoop); return true;
+  } finally { $('#camStart').disabled=false; paintCamButtons(); }
+}
+function camStop(){ CAM.on=false; try{ CAM.stream&&CAM.stream.getTracks().forEach(t=>t.stop()); }catch(e){} CAM.stream=null; CAM.video=null; document.body.classList.remove('cam'); for(const k of ['l','r','d','b']){ if(IN.h[k]) press(k,false); CAM2.h[k]=0; } paintCamButtons(); camStatus('Camera off.'); }
+function recalibrate(){ CAM.eng=[newEngine(),newEngine()]; camStatus('Hold still for a second…'); }
+function setHeld(i,k,v){ v=v?1:0; if(i===0){ if(IN.h[k]!==v) press(k,!!v); } else CAM2.h[k]=v; }
+function tapKey(i,k){ if(i===0){ press(k,true); press(k,false); } else CAM2.c[k]++; }
+function flashE(E,t,txt){ E.label=txt; E.labelT=t; }
+const centerX=p=>{ const hv=p[23].visibility>.5&&p[24].visibility>.5; return hv?(p[23].x+p[24].x)/2:(p[11].x+p[12].x)/2; };
+function camLoop(){
+  if(!CAM.on) return; requestAnimationFrame(camLoop);
+  const v=CAM.video; if(!v||v.readyState<2) return; if(v.currentTime===CAM.last){ return; } CAM.last=v.currentTime;
+  const t=performance.now(); let res; try{ res=CAM.lm.detectForVideo(v,t); }catch(e){ return; }
+  camProcess(res.landmarks||[],t); drawCam(res.landmarks||[]);
+}
+function camProcess(all,t){
+  let poses=all.filter(p=>p[11].visibility>.5&&p[12].visibility>.5);
+  if(CAM.players===1){ poses=poses.length?[poses.slice().sort((a,b)=>Math.hypot(b[11].x-b[12].x,b[11].y-b[12].y)-Math.hypot(a[11].x-a[12].x,a[11].y-a[12].y))[0]]:[]; feed(CAM.eng[0],poses[0]||null,t,0); return; }
+  // two players: the person on the left of the (mirrored) picture is player 1
+  poses.sort((a,b)=>centerX(b)-centerX(a));
+  let as=[poses[0]||null,poses[1]||null];
+  if(poses.length===1){ const x=centerX(poses[0]); const d=E=>E.cx==null?9:Math.abs(E.cx-x); as=d(CAM.eng[0])<=d(CAM.eng[1])?[poses[0],null]:[null,poses[0]]; }
+  feed(CAM.eng[0],as[0],t,0); feed(CAM.eng[1],as[1],t,1);
+}
+function feed(E,p,t,i){
+  if(!p){ for(const k of ['l','r','d','b']) setHeld(i,k,0); E.prev=null; return; }
+  const ls=p[11], rs=p[12], nose=p[0], le=p[13], re=p[14], lw=p[15], rw=p[16], lh=p[23], rh=p[24], lk=p[25], rk=p[26];
+  const u=Math.max(.03,Math.hypot(ls.x-rs.x,ls.y-rs.y)); const S={x:(ls.x+rs.x)/2,y:(ls.y+rs.y)/2};
+  const hipsOK=lh.visibility>.5&&rh.visibility>.5; const hipY=hipsOK?(lh.y+rh.y)/2:S.y+1.6*u; const cx=hipsOK?(lh.x+rh.x)/2:S.x; E.cx=cx;
+  const kneesOK=lk.visibility>.5&&rk.visibility>.5;
+  if(!E.base){
+    E.calib.push({sy:S.y,cx,u,ky:kneesOK?(lk.y+rk.y)/2:null}); if(E.calib.length>40) E.calib.shift();
+    if(E.calib.length>=24){ const a=E.calib.slice(-24); const sy=a.map(q=>q.sy), xs=a.map(q=>q.cx); const spread=(Math.max(...sy)-Math.min(...sy))+(Math.max(...xs)-Math.min(...xs));
+      if(spread<u*.35){ const ks=a.map(q=>q.ky).filter(v=>v!=null); E.base={sy:avgA(sy),cx:avgA(xs),u:avgA(a.map(q=>q.u)),ky:ks.length>12?avgA(ks):null}; flashE(E,t,'READY!'); play('select',.6);
+        const ready=CAM.eng.slice(0,CAM.players).every(e=>e.base); camStatus(ready?(E.base.ky==null?'Ready! (Step back a little more so kicks work: we can’t see your knees.)':'Ready! Punch, kick, jump and block to fight.'):'Player '+(i+1)+' ready. Waiting for the other player…'); } }
+    E.prev=null; return; }
+  const B=E.base, U=B.u, dt=Math.max(.016,Math.min(.2,(t-E.prevT)/1000));
+  // step left/right (the picture is mirrored: stepping to your right lowers x)
+  const dx=cx-B.cx; setHeld(i,'r',dx<-.5*U); setHeld(i,'l',dx>.5*U);
+  if(dx<-.5*U) flashE(E,t,'→'); else if(dx>.5*U) flashE(E,t,'←');
+  // duck and jump
+  const dy=S.y-B.sy; setHeld(i,'d',dy>.6*U); if(dy>.6*U) flashE(E,t,'DUCK');
+  if(E.prev){ const vy=(S.y-E.prev.sy)/dt; if(dy<-.3*U && vy<-1.8*U && t>E.cd.u){ tapKey(i,'u'); E.cd.u=t+700; flashE(E,t,'JUMP!'); } }
+  // super: both hands above the head, held
+  const overHead=lw.y<nose.y-.5*U && rw.y<nose.y-.5*U;
+  if(overHead){ if(!E.ohT) E.ohT=t; if(t-E.ohT>350 && t>E.cd.x){ tapKey(i,'x'); E.cd.x=t+1500; flashE(E,t,'SUPER!'); } } else E.ohT=0;
+  // punches: a fast wrist with the arm straightening (towards the camera counts too)
+  let punching=false;
+  const reach=[Math.hypot(lw.x-ls.x,lw.y-ls.y,(lw.z-ls.z)*.6)/U,Math.hypot(rw.x-rs.x,rw.y-rs.y,(rw.z-rs.z)*.6)/U];
+  if(E.prev){ [[0,lw,ls,le],[1,rw,rs,re]].forEach(([j,w,s,el])=>{ const pw=E.prev.w[j]; const sp=Math.hypot(w.x-pw.x,w.y-pw.y)/dt/U + Math.max(0,pw.z-w.z)/dt/U*.5;
+      const grow=reach[j]-Math.min(E.prev.r[j],E.prev.r2?E.prev.r2[j]:9);
+      const ext=Math.hypot(w.x-s.x,w.y-s.y)/Math.max(1e-4,Math.hypot(el.x-s.x,el.y-s.y)+Math.hypot(w.x-el.x,w.y-el.y));
+      const inZone=w.y>nose.y-.6*U && w.y<hipY;
+      if(sp>5 && ext>.8 && inZone && grow>.22){ punching=true; if(t>E.cd['p'+j]){ E.cd['p'+j]=t+260; E.punchT[j]=t;
+          if(t-E.punchT[1-j]<180 && t>E.cd.s){ tapKey(i,'s'); E.cd.s=t+900; flashE(E,t,'THROW!'); } else { tapKey(i,'p'); flashE(E,t,'PUNCH!'); } } } }); }
+  // block: both fists up in front of the face
+  const guard=!overHead && lw.y<S.y+.15*U && rw.y<S.y+.15*U && Math.abs(lw.x-nose.x)<1.1*U && Math.abs(rw.x-nose.x)<1.1*U && !punching;
+  setHeld(i,'b',guard); if(guard&&!(E.label==='BLOCK'&&t-E.labelT<400)) flashE(E,t,'BLOCK');
+  // kick: a knee lifted well above where it stands
+  if(B.ky!=null && kneesOK){ const ky=Math.min(lk.y,rk.y); if(B.ky-ky>.5*U && t>E.cd.k){ tapKey(i,'k'); E.cd.k=t+450; flashE(E,t,'KICK!'); } }
+  E.prev={sy:S.y,r:reach,r2:E.prev?E.prev.r:null,w:[{x:lw.x,y:lw.y,z:lw.z},{x:rw.x,y:rw.y,z:rw.z}]}; E.prevT=t; E.lmk=p;
+}
+const BONES=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+function drawCam(all){
+  const targets=[$('#camMini')]; if(!$('#camOv').hidden) targets.push($('#camBig'));
+  for(const c of targets){ if(!c) continue; const g=c.getContext('2d'); const w=c.width, h=c.height; g.save(); g.clearRect(0,0,w,h);
+    g.translate(w,0); g.scale(-1,1); if(CAM.video) g.drawImage(CAM.video,0,0,w,h); g.fillStyle='rgba(10,8,5,.35)'; g.fillRect(0,0,w,h);
+    CAM.eng.slice(0,CAM.players).forEach((E,i)=>{ const p=E.lmk; if(!p&&!E.base) return; const col=i?'#3fb4ff':'#ff7a1a';
+      if(E.base){ g.strokeStyle='rgba(255,255,255,.25)'; g.setLineDash([4,4]); g.beginPath(); g.moveTo(E.base.cx*w,0); g.lineTo(E.base.cx*w,h); g.stroke(); g.setLineDash([]); }
+      const pp=E.lmk||null; if(pp){ g.strokeStyle=col; g.lineWidth=Math.max(2,w/120); g.lineCap='round'; g.beginPath(); for(const [a,b] of BONES){ if(pp[a].visibility<.4||pp[b].visibility<.4) continue; g.moveTo(pp[a].x*w,pp[a].y*h); g.lineTo(pp[b].x*w,pp[b].y*h); } g.stroke(); g.fillStyle='#fff'; g.beginPath(); g.arc(pp[0].x*w,pp[0].y*h,w/60,0,7); g.fill(); } });
+    g.restore();
+    // labels (unmirrored text)
+    CAM.eng.slice(0,CAM.players).forEach((E,i)=>{ const col=i?'#3fb4ff':'#ff7a1a'; const x=CAM.players===2?(i?w*.75:w*.25):w/2; g.textAlign='center'; g.font=`400 ${Math.round(h/7)}px Anton, Impact, sans-serif`;
+      let txt=E.base?(performance.now()-E.labelT<500?E.label:''):(E.lmk||E.calib.length?'HOLD STILL…':'STEP INTO VIEW'); if(!txt) return; g.lineWidth=4; g.strokeStyle='#000'; g.strokeText(txt,x,h*.2); g.fillStyle=E.base?col:'#fff'; g.fillText(txt,x,h*.2); });
+    if(CAM.players===2){ g.fillStyle='rgba(255,255,255,.5)'; g.font=`700 ${Math.round(h/16)}px Inter, sans-serif`; g.textAlign='left'; g.fillText('P1',6,h-8); g.textAlign='right'; g.fillText('P2',w-6,h-8); }
+  }
+}
+function paintCamButtons(){ const on=CAM.on; $('#camStart').hidden=on; $('#camRecal').hidden=!on; $('#camOff').hidden=!on; $('#camGo').disabled=!on; $('#camOnline').disabled=!on||CAM.players===2; }
+function openCam(){ show('#camOv'); paintCamButtons(); document.querySelectorAll('#camPlayers button').forEach(b=>{ b.setAttribute('aria-pressed',String(+b.dataset.n===CAM.players)); b.onclick=()=>{ CAM.players=+b.dataset.n; document.querySelectorAll('#camPlayers button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); recalibrate(); paintCamButtons(); }; }); if(!CAM.on) camStart(); }
+$('#camBtn').onclick=()=>{ audioInit(); openCam(); };
+$('#camStart').onclick=()=>camStart();
+$('#camRecal').onclick=()=>recalibrate();
+$('#camOff').onclick=()=>camStop();
+$('#camBack').onclick=()=>show('#titleOv');
+$('#camGo').onclick=()=>{ if(CAM.players===2){ DUO.step=1; openSelect('local2'); } else openSelect('cpu'); };
+$('#camOnline').onclick=()=>openSelect('online');
+$('#camMini').addEventListener('click',()=>{ recalibrate(); });
+// two players on one camera
+const DUO={step:1,p1:null,p2:null};
+async function startLocal2(){ const a=byId(DUO.p1), b=byId(DUO.p2); await prepFighter(a); await prepFighter(b);
+  G.mode='local2'; lastCnt[1]={...CAM2.c}; newMatch(a.id,b.id,Math.floor(Math.random()*4)); G.f[0].name='P1 · '+a.name; G.f[1].name='P2 · '+b.name; beginFight(); }
+
 /* ================= boot ================= */
 if(matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window) document.body.classList.add('touch');
 addEventListener('resize',resize); addEventListener('orientationchange',()=>setTimeout(resize,200));
@@ -1044,7 +1194,7 @@ requestAnimationFrame(loop);
 
 if(urlRoom){ $('#titleOv').querySelector('.lede').textContent='Your friend invited you to a fight (room '+urlRoom+'). Pick your fighter and you\'re in.'; $('#cpuBtn').hidden=true; $('#onlineBtn').textContent='👊 Join the fight'; }
 
-if(DEBUG) window.__G={G,MOVES,step,newMatch,prepFighter,ROSTER,HEAD,IN,press,render,pose,hurtbox,hitbox,loop,NET};
+if(DEBUG) window.__G={CAM,CAM2,camProcess,feed,newEngine,drawCam,DUO,startLocal2,G,MOVES,step,newMatch,prepFighter,ROSTER,HEAD,IN,press,render,pose,hurtbox,hitbox,loop,NET};
 })();
 </script>
 </body>
